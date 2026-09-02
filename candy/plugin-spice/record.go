@@ -51,7 +51,6 @@ type recordSession struct {
 	mu    sync.Mutex
 	buf   bytes.Buffer
 	count int
-	last  *image.RGBA
 }
 
 // recordName returns the authored record_name, defaulting to "default".
@@ -133,16 +132,17 @@ func (rs *recordSession) run() {
 		case <-rs.done:
 			return
 		case <-tick.C:
+			// Video semantics: every poll is one frame of the stream (static
+			// displays repeat frames — that is a normal video, not a still).
+			// A change-only capture of a short/static window collapses a
+			// recording to a single JPEG still (measured on the R10 spike,
+			// calver 2026.245.1423: frames: 1), so no change detection is
+			// applied here.
 			img := rs.s.Display()
 			if img == nil {
 				continue
 			}
 			rs.mu.Lock()
-			changed := framesChanged(rs.last, img)
-			if !changed {
-				rs.mu.Unlock()
-				continue
-			}
 			rs.appendLocked(img)
 			rs.mu.Unlock()
 		}
@@ -155,50 +155,8 @@ func (rs *recordSession) appendLocked(img image.Image) {
 	if err := jpeg.Encode(&b, img, &jpeg.Options{Quality: 80}); err != nil {
 		return
 	}
-	rs.last = normalizeRGBA(img)
 	rs.buf.Write(b.Bytes())
 	rs.count++
-}
-
-// framesChanged reports whether two framebuffers differ (a sparse comparison:
-// identical frames are skipped; only the 64-pixel grid is compared).
-func framesChanged(a *image.RGBA, b image.Image) bool {
-	if a == nil {
-		return true // first frame always captured
-	}
-	bb := normalizeRGBA(b)
-	if bb == nil {
-		return false
-	}
-	if a.Bounds() != bb.Bounds() {
-		return true
-	}
-	w, h := bb.Bounds().Dx(), bb.Bounds().Dy()
-	for y := 0; y < h; y += 64 {
-		for x := 0; x < w; x += 64 {
-			i := bb.PixOffset(x, y)
-			if a.Pix[i] != bb.Pix[i] || a.Pix[i+1] != bb.Pix[i+1] || a.Pix[i+2] != bb.Pix[i+2] {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// normalizeRGBA converts any image to *image.RGBA for stable comparison.
-func normalizeRGBA(img image.Image) *image.RGBA {
-	switch v := img.(type) {
-	case *image.RGBA:
-		return v
-	default:
-		rgba := image.NewRGBA(img.Bounds())
-		for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
-			for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
-				rgba.Set(x, y, img.At(x, y))
-			}
-		}
-		return rgba
-	}
 }
 
 // writeArtifact writes the MJPEG stream to the host artifact path.

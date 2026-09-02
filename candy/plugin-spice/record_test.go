@@ -47,26 +47,6 @@ func TestRecordFps(t *testing.T) {
 	}
 }
 
-func TestFramesChanged(t *testing.T) {
-	a := solidRGBA(64, 64, color.RGBA{R: 10, G: 20, B: 30, A: 255})
-	same := solidRGBA(64, 64, color.RGBA{R: 10, G: 20, B: 30, A: 255})
-	diff := solidRGBA(64, 64, color.RGBA{R: 240, G: 20, B: 30, A: 255})
-	if !framesChanged(nil, a) {
-		t.Errorf("first frame must always count as changed")
-	}
-	if framesChanged(a, same) {
-		t.Errorf("identical frames must be skipped")
-	}
-	if !framesChanged(a, diff) {
-		t.Errorf("changed pixel must trigger a frame")
-	}
-	// bounds change is a change
-	big := solidRGBA(128, 64, color.RGBA{R: 10, G: 20, B: 30, A: 255})
-	if !framesChanged(a, big) {
-		t.Errorf("bounds change must trigger a frame")
-	}
-}
-
 func TestAppendLockedMJPEG(t *testing.T) {
 	rs := &recordSession{}
 	img := solidRGBA(32, 32, color.RGBA{R: 90, G: 140, B: 200, A: 255})
