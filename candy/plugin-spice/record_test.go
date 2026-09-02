@@ -47,26 +47,6 @@ func TestRecordFps(t *testing.T) {
 	}
 }
 
-func TestFramesChanged(t *testing.T) {
-	a := solidRGBA(64, 64, color.RGBA{R: 10, G: 20, B: 30, A: 255})
-	same := solidRGBA(64, 64, color.RGBA{R: 10, G: 20, B: 30, A: 255})
-	diff := solidRGBA(64, 64, color.RGBA{R: 240, G: 20, B: 30, A: 255})
-	if !framesChanged(nil, a) {
-		t.Errorf("first frame must always count as changed")
-	}
-	if framesChanged(a, same) {
-		t.Errorf("identical frames must be skipped")
-	}
-	if !framesChanged(a, diff) {
-		t.Errorf("changed pixel must trigger a frame")
-	}
-	// bounds change is a change
-	big := solidRGBA(128, 64, color.RGBA{R: 10, G: 20, B: 30, A: 255})
-	if !framesChanged(a, big) {
-		t.Errorf("bounds change must trigger a frame")
-	}
-}
-
 func TestAppendLockedMJPEG(t *testing.T) {
 	rs := &recordSession{}
 	img := solidRGBA(32, 32, color.RGBA{R: 90, G: 140, B: 200, A: 255})
@@ -90,6 +70,31 @@ func TestAppendLockedMJPEG(t *testing.T) {
 		}
 	}
 }
+
+// TestTickAppendsIdenticalFrames is the B12 coverage for the multi-frame
+// semantics: two consecutive ticks with the SAME framebuffer must BOTH append a
+// frame (a camera-accurate video of a still scene). It FAILS on the pre-change
+// code (the change-only capture skipped the identical second frame).
+func TestTickAppendsIdenticalFrames(t *testing.T) {
+	fake := &fakeSpiceSession{img: solidRGBA(32, 32, color.RGBA{R: 10, G: 200, B: 30, A: 255})}
+	rs := &recordSession{s: fake}
+
+	rs.tick()
+	rs.tick()
+	if rs.count != 2 {
+		t.Fatalf("two identical ticks = %d frames, want 2 (every poll is one frame)", rs.count)
+	}
+	if frames := splitMJpeg(rs.buf.Bytes()); len(frames) != 2 {
+		t.Fatalf("splitMJpeg = %d frames, want 2", len(frames))
+	}
+}
+
+// fakeSpiceSession satisfies the small part of SpiceSession the poller uses.
+type fakeSpiceSession struct {
+	img *image.RGBA
+}
+
+func (f *fakeSpiceSession) Display() image.Image { return f.img }
 
 // splitMJpeg splits a concatenated-JPEG stream at SOI/EOI boundaries.
 func splitMJpeg(data []byte) [][]byte {
