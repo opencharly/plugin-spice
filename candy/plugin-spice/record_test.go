@@ -78,6 +78,7 @@ func TestAppendLockedMJPEG(t *testing.T) {
 func TestTickAppendsIdenticalFrames(t *testing.T) {
 	fake := &fakeSpiceSession{img: solidRGBA(32, 32, color.RGBA{R: 10, G: 200, B: 30, A: 255})}
 	rs := &recordSession{s: fake}
+
 	rs.tick()
 	rs.tick()
 	if rs.count != 2 {
@@ -90,8 +91,7 @@ func TestTickAppendsIdenticalFrames(t *testing.T) {
 
 // fakeSpiceSession satisfies the small part of SpiceSession the poller uses.
 type fakeSpiceSession struct {
-	img  *image.RGBA
-	sess SpiceSession
+	img *image.RGBA
 }
 
 func (f *fakeSpiceSession) Display() image.Image { return f.img }
