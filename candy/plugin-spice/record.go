@@ -43,9 +43,14 @@ import (
 // recordSessions is the package-global record-session registry (name -> session).
 var recordSessions sync.Map
 
+// displaySource is the subset of SpiceSession the recorder consumes (the
+// MARK-stashed framebuffer); an interface so the poll loop is unit-testable
+// with a fake (B12).
+type displaySource interface{ Display() image.Image }
+
 // recordSession captures display frames of one named recording.
 type recordSession struct {
-	s     *SpiceSession
+	s     displaySource
 	fps   time.Duration
 	done  chan struct{}
 	mu    sync.Mutex
@@ -132,21 +137,26 @@ func (rs *recordSession) run() {
 		case <-rs.done:
 			return
 		case <-tick.C:
-			// Video semantics: every poll is one frame of the stream (static
-			// displays repeat frames — that is a normal video, not a still).
-			// A change-only capture of a short/static window collapses a
-			// recording to a single JPEG still (measured on the R10 spike,
-			// calver 2026.245.1423: frames: 1), so no change detection is
-			// applied here.
-			img := rs.s.Display()
-			if img == nil {
-				continue
-			}
-			rs.mu.Lock()
-			rs.appendLocked(img)
-			rs.mu.Unlock()
+			rs.tick()
 		}
 	}
+}
+
+// tick captures one poll of the session display as a frame. Video semantics:
+// every poll is one frame of the stream (static displays repeat frames — that
+// is a normal video, not a still); a change-only capture of a short/static
+// window collapses a recording to a single JPEG still (measured on the R10
+// spike, calver 2026.245.1423: frames: 1), so NO change detection is applied.
+// Extracted for the unit test that FAILS without this behavior (two identical
+// framebuffers are both appended).
+func (rs *recordSession) tick() {
+	img := rs.s.Display()
+	if img == nil {
+		return
+	}
+	rs.mu.Lock()
+	rs.appendLocked(img)
+	rs.mu.Unlock()
 }
 
 // appendLocked encodes one frame into the MJPEG stream (caller holds rs.mu).

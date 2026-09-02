@@ -71,6 +71,31 @@ func TestAppendLockedMJPEG(t *testing.T) {
 	}
 }
 
+// TestTickAppendsIdenticalFrames is the B12 coverage for the multi-frame
+// semantics: two consecutive ticks with the SAME framebuffer must BOTH append a
+// frame (a camera-accurate video of a still scene). It FAILS on the pre-change
+// code (the change-only capture skipped the identical second frame).
+func TestTickAppendsIdenticalFrames(t *testing.T) {
+	fake := &fakeSpiceSession{img: solidRGBA(32, 32, color.RGBA{R: 10, G: 200, B: 30, A: 255})}
+	rs := &recordSession{s: fake}
+	rs.tick()
+	rs.tick()
+	if rs.count != 2 {
+		t.Fatalf("two identical ticks = %d frames, want 2 (every poll is one frame)", rs.count)
+	}
+	if frames := splitMJpeg(rs.buf.Bytes()); len(frames) != 2 {
+		t.Fatalf("splitMJpeg = %d frames, want 2", len(frames))
+	}
+}
+
+// fakeSpiceSession satisfies the small part of SpiceSession the poller uses.
+type fakeSpiceSession struct {
+	img  *image.RGBA
+	sess SpiceSession
+}
+
+func (f *fakeSpiceSession) Display() image.Image { return f.img }
+
 // splitMJpeg splits a concatenated-JPEG stream at SOI/EOI boundaries.
 func splitMJpeg(data []byte) [][]byte {
 	var frames [][]byte
