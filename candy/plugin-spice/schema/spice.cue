@@ -24,7 +24,15 @@
 #SpiceInput: {
 	// method — the spice method to dispatch (the former core #SpiceMethod enum;
 	// also the scalar-sugar primary: `spice: <method>`).
-	method: "status" | "screenshot" | "cursor" | "click" | "mouse" | "type" | "key"
+	method: "status" | "screenshot" | "cursor" | "click" | "mouse" | "type" | "key" | "record"
+	// action — start|stop for a record session (record). start begins capturing the
+	// display framebuffer at fps into an MJPEG stream; stop flushes it to artifact.
+	action?: "start" | "stop" @go(Action)
+	// record_name — the recording session name (default "default"); multiple
+	// concurrent sessions supported.
+	record_name?: string @go(RecordName)
+	// fps — the display-frame capture rate for record (default 5).
+	fps?: int & >=1 @go(Fps,type=int)
 	// x / y — guest-absolute coordinates (click/mouse).
 	x?: int @go(,type=int)
 	y?: int @go(,type=int)

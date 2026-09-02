@@ -34,6 +34,7 @@ var requiredModifiers = map[string][]string{
 	"mouse":      {"x", "y"},
 	"type":       {"text"},
 	"key":        {"key"},
+	"record":     {"action"},
 }
 
 // dispatch runs one spice method against the pre-dialed session and returns its
@@ -62,6 +63,8 @@ func dispatch(s *SpiceSession, op *spec.Op, in *params.SpiceInput) (string, erro
 		return runType(s, in.Text)
 	case "key":
 		return runKey(s, in.KeyName)
+	case "record":
+		return runRecord(s, in)
 	}
 	return "", fmt.Errorf("unknown spice method %q", method)
 }

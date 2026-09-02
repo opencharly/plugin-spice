@@ -54,4 +54,13 @@ type SpiceInput struct {
 	ArtifactMinDimensions string `yaml:"artifact_min_dimensions,omitempty" json:"artifact_min_dimensions,omitempty"`
 
 	ArtifactNotUniform bool `yaml:"artifact_not_uniform,omitempty" json:"artifact_not_uniform,omitempty"`
+
+	// action — start|stop for a record session (record).
+	Action string `yaml:"action,omitempty" json:"action,omitempty"`
+
+	// record_name — the recording session name (default "default").
+	RecordName string `yaml:"record_name,omitempty" json:"record_name,omitempty"`
+
+	// fps — the display-frame capture rate for record (default 5).
+	Fps int `yaml:"fps,omitempty" json:"fps,omitempty"`
 }
