@@ -99,7 +99,8 @@ func (provider) Invoke(ctx context.Context, req *pb.InvokeRequest) (*pb.InvokeRe
 
 	// The shared exit/stdout/stderr + artifact verdict pipeline (R3). screenshot and cursor are
 	// spice's two artifact-producing methods.
-	return sdk.VerbVerdict("spice", method, out, runErr, &op, method == "screenshot" || method == "cursor")
+	artifactMethod := method == "screenshot" || method == "cursor" || (method == "record" && in.Action == "stop")
+	return sdk.VerbVerdict("spice", method, out, runErr, &op, artifactMethod)
 }
 
 // dialEndpoint opens a SPICE session against the host-pre-resolved endpoint —
