@@ -61,9 +61,6 @@ type evidenceArtifact struct {
 
 // NewEndpoint builds a dialable endpoint (the provider-side spiceEndpoint; exported
 // so cmd/serve's recorder mode can construct/decode one over the env contract).
-func NewEndpoint(address, socket, password string) *spiceEndpoint {
-	return &spiceEndpoint{Address: address, Socket: socket, Password: password}
-}
 
 // ParseEndpoint decodes the endpoint JSON the provider threads via
 // CHARLY_SPICE_ENDPOINT (the spiceEndpoint wire shape).

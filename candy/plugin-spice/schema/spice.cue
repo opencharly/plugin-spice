@@ -58,6 +58,10 @@
 	// marker + the evidence row.json. venue/phase are stamped into the evidence row.
 	session_id?: string @go(SessionId)
 	state_dir?:  string @go(StateDir)
+	// artifact_dir — the runner-injected generic evidence-artifact dir (verb-agnostic;
+	// the provider appends its own filename/extension).
+	artifact_dir?: string @go(ArtifactDir)
+	log_dir?:  string @go(LogDir)
 	venue?:      string @go(Venue)
 	phase?:      string @go(Phase)
 }
