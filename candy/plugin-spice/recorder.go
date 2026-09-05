@@ -59,9 +59,6 @@ type evidenceArtifact struct {
 	Kind string `json:"kind"`
 }
 
-// NewEndpoint builds a dialable endpoint (the provider-side spiceEndpoint; exported
-// so cmd/serve's recorder mode can construct/decode one over the env contract).
-
 // ParseEndpoint decodes the endpoint JSON the provider threads via
 // CHARLY_SPICE_ENDPOINT (the spiceEndpoint wire shape).
 func ParseEndpoint(raw []byte) (*spiceEndpoint, error) {
