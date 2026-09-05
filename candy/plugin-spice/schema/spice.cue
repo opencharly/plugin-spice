@@ -24,10 +24,11 @@
 #SpiceInput: {
 	// method — the spice method to dispatch (the former core #SpiceMethod enum;
 	// also the scalar-sugar primary: `spice: <method>`).
-	method: "status" | "screenshot" | "cursor" | "click" | "mouse" | "type" | "key" | "record"
-	// action — start|stop for a record session (record). start begins capturing the
-	// display framebuffer at fps into an MJPEG stream; stop flushes it to artifact.
-	action?: "start" | "stop" @go(Action)
+	method: "status" | "screenshot" | "cursor" | "click" | "mouse" | "type" | "key" | "record" | "session"
+	// action — start|stop for a record session (record); start|stop|status for a
+	// session (session). record start begins capturing the display framebuffer at
+	// fps into an MJPEG stream; record stop flushes it to artifact.
+	action?: "start" | "stop" | "status" @go(Action)
 	// record_name — the recording session name (default "default"); multiple
 	// concurrent sessions supported.
 	record_name?: string @go(RecordName)
@@ -49,4 +50,18 @@
 	artifact_min_bytes?:      int & >=0                    @go(ArtifactMinBytes,type=int)
 	artifact_min_dimensions?: string & =~"^[0-9]+x[0-9]+$" @go(ArtifactMinDimensions)
 	artifact_not_uniform?:    bool                         @go(ArtifactNotUniform)
+	// session — the DETACHED host-side recorder (Cutover A, A-task-2b): `spice: session` starts
+	// the plugin's OWN binary in recorder mode through the runner's generic
+	// background-session service (plugin-check's verb:session seam). The recorder
+	// holds the SPICE wire itself — the provider stays wire-free — polls the display
+	// at fps into state_dir/frames.mjpeg, and on SIGTERM finalizes with the FINAL
+	// marker + the evidence row.json. venue/phase are stamped into the evidence row.
+	session_id?: string @go(SessionId)
+	state_dir?:  string @go(StateDir)
+	// artifact_dir — the runner-injected generic evidence-artifact dir (verb-agnostic;
+	// the provider appends its own filename/extension).
+	artifact_dir?: string @go(ArtifactDir)
+	log_dir?:  string @go(LogDir)
+	venue?:      string @go(Venue)
+	phase?:      string @go(Phase)
 }
