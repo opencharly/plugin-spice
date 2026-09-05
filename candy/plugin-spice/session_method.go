@@ -32,6 +32,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/opencharly/plugin-spice/candy/plugin-spice/params"
 	"github.com/opencharly/spec/ops"
@@ -133,10 +134,10 @@ func sessionStart(ctx context.Context, cc kit.CheckContext, ep *spiceEndpoint, i
 		venue = venueDefault
 	}
 	// log_dir: the runner's session handle + the recorder state live in the check run
-	// dir; the current CheckEnv snapshot (EnvJson) carries no run-dir field, so this
-	// stays "" (the runner's cwd-relative default) until the A-task-4 instrument
-	// lifecycle threads one over the wire.
-	logDir := ""
+	// dir. The A-task-4 instrument lifecycle threads the run dir over the wire
+	// (buildInstrumentOp's log_dir); a plan-step session (no runner envelope) falls
+	// back to "" — the runner's cwd-relative default.
+	logDir := in.LogDir
 	req := buildSessionSpawn(in, ep, exe, venue, logDir)
 	if err := submitSession(ctx, cc, req); err != nil {
 		return "", fmt.Errorf("session start: %w", err)
@@ -151,14 +152,23 @@ func sessionStop(ctx context.Context, cc kit.CheckContext, in *params.SpiceInput
 	if in.StateDir == "" {
 		return "", fmt.Errorf("session stop: state_dir required to verify the evidence row")
 	}
-	req := sessionRequest{Op: "stop", SessionID: in.SessionId}
+	// log_dir rides the stop request too: the runner resolves the handle under the
+	// run dir the SPAWN used (sessionStateDir(log_dir, id)). A stop without it
+	// looks up the cwd-relative default and finds "no session on record" — the
+	// spawn-side fix alone moved the handle out of the default's reach.
+	req := sessionRequest{Op: "stop", SessionID: in.SessionId, LogDir: in.LogDir}
 	if err := submitSession(ctx, cc, req); err != nil {
 		return "", fmt.Errorf("session stop: %w", err)
 	}
+	// The runner's stop is synchronous (SIGTERM → grace → SIGKILL), but the
+	// recorder's finalize is its OWN SIGTERM trap: the evidence row lands when the
+	// recorder writes it, which can lag the process exit (a blocked display poll
+	// delays the trap's finalize). Wait (bounded) for the row instead of reading
+	// once — a stop that returns before the row is on disk is a false failure.
 	rowPath := filepath.Join(in.StateDir, evidenceFile)
-	raw, err := os.ReadFile(rowPath)
+	raw, err := waitForEvidenceRow(ctx, rowPath, sessionStopRowTimeout)
 	if err != nil {
-		return "", fmt.Errorf("session stop: %q: evidence row missing: %w", rowPath, err)
+		return "", fmt.Errorf("session stop: %w", err)
 	}
 	var row evidenceRow
 	if err := json.Unmarshal(raw, &row); err != nil {
@@ -166,6 +176,39 @@ func sessionStop(ctx context.Context, cc kit.CheckContext, in *params.SpiceInput
 	}
 	return fmt.Sprintf("session %s stopped · evidence: instrument=%s origin=%s artifact=%s (%s)",
 		in.SessionId, row.Instrument, row.Origin, rowArtifact(row), filepath.Join(in.StateDir, finalMarker)), nil
+}
+
+// sessionStopRowTimeout bounds the stop's wait for the recorder's evidence row.
+// The runner's stop ladder (SIGTERM → grace → SIGKILL) already bounds the process
+// exit; this bounds the row's LANDING, which can lag the exit (the recorder's
+// finalize is its own SIGTERM trap). 10s is generous for a two-file write and
+// short enough that a crashed recorder (no row, ever) fails the stop fast.
+const sessionStopRowTimeout = 10 * time.Second
+
+// waitForEvidenceRow polls for the recorder's evidence row with a bounded deadline:
+// the row appears when the recorder's SIGTERM trap finalizes, which can lag the
+// runner's stop return. A missing row at the deadline means the recorder never
+// finalized (crashed before its trap, or killed without one) — a real failure,
+// reported with the path so the operator can inspect the state dir.
+func waitForEvidenceRow(ctx context.Context, rowPath string, timeout time.Duration) ([]byte, error) {
+	deadline := time.Now().Add(timeout)
+	for {
+		raw, err := os.ReadFile(rowPath)
+		if err == nil {
+			return raw, nil
+		}
+		if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("%q: %w", rowPath, err)
+		}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("%q: evidence row missing after %s (recorder never finalized)", rowPath, timeout)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
 }
 
 // rowArtifact renders the row's first artifact as "path[kind]" (a stop path always
@@ -180,7 +223,9 @@ func rowArtifact(row evidenceRow) string {
 
 // sessionStatus asks the runner for the session handle's liveness and reports it.
 func sessionStatus(ctx context.Context, cc kit.CheckContext, in *params.SpiceInput) (string, error) {
-	req := sessionRequest{Op: "status", SessionID: in.SessionId}
+	// log_dir rides the status request too — the runner resolves the handle under
+	// the run dir the spawn used (same contract as stop).
+	req := sessionRequest{Op: "status", SessionID: in.SessionId, LogDir: in.LogDir}
 	raw, err := submitSessionReply(ctx, cc, req)
 	if err != nil {
 		return "", fmt.Errorf("session status: %w", err)

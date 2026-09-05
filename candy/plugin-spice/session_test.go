@@ -1,16 +1,17 @@
 package spice
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"image/color"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
-	"context"
-	"fmt"
 	"github.com/opencharly/plugin-spice/candy/plugin-spice/params"
 	"github.com/opencharly/spec/spec"
 )
@@ -178,3 +179,47 @@ func (stubCC) InvokeProvider(ctx context.Context, class, word, op string, params
 // helpers ----------------------------------------------------------------
 
 func itoa(v int) string { return strconv.Itoa(v) }
+
+// TestWaitForEvidenceRow covers the stop path's bounded row wait: the row appears
+// (the recorder's SIGTERM trap finalizes) → the bytes are returned; the row never
+// appears → the deadline error names the path + timeout. The timeout path is the
+// crashed-recorder case (no row, ever) — the stop must fail fast, not hang.
+func TestWaitForEvidenceRow(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	rowPath := filepath.Join(dir, evidenceFile)
+
+	// Row-appears path: the row lands after a short delay (the recorder's finalize
+	// lagging the stop return) — the wait must return the bytes.
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		_ = os.WriteFile(rowPath, []byte(`{"instrument":"s"}`), 0o644)
+	}()
+	raw, err := waitForEvidenceRow(ctx, rowPath, 2*time.Second)
+	if err != nil {
+		t.Fatalf("row-appears path: %v", err)
+	}
+	if string(raw) != `{"instrument":"s"}` {
+		t.Fatalf("row-appears path: got %q", raw)
+	}
+
+	// Timeout path: no row ever lands — the wait must fail with the path + timeout
+	// named (the crashed-recorder case).
+	missing := filepath.Join(dir, "missing", evidenceFile)
+	_, err = waitForEvidenceRow(ctx, missing, 150*time.Millisecond)
+	if err == nil {
+		t.Fatal("timeout path: want error")
+	}
+	if !strings.Contains(err.Error(), "evidence row missing after") {
+		t.Fatalf("timeout path: error %q does not name the deadline", err)
+	}
+
+	// Cancelled-ctx path: a cancelled context aborts the wait promptly.
+	cctx, cancel := context.WithCancel(ctx)
+	cancel()
+	_, err = waitForEvidenceRow(cctx, missing, 5*time.Second)
+	if err == nil {
+		t.Fatal("cancelled-ctx path: want error")
+	}
+}
+
