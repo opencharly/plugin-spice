@@ -200,14 +200,27 @@ func submitSession(ctx context.Context, brokerID uint32, req sessionRequest) err
 // submitSessionReply sends the request over the EXISTING InvokeProvider reverse leg
 // (ClassVerb "session", OpExecute). The runner (plugin-check, compiled-in) dispatches
 // it; failures ride the returned error; a status op carries the result JSON back.
+// sessionInvokeArgs builds the EXACT reverse-leg invocation the runner's verb:session
+// seam decodes (session_seam.go in plugin-check): class "verb", word "session", op
+// OpExecute, and the request JSON in the seam's wire shape. PURE + unit-tested so a
+// deletion of or drift in the submission path fails a test that would otherwise be
+// silent (the runner seam is installed by the same wave's plugin-check PR).
+func sessionInvokeArgs(req sessionRequest) (string, string, []byte, error) {
+	reqJSON, err := json.Marshal(req)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("session: encode request: %w", err)
+	}
+	return "verb", "session", reqJSON, nil
+}
+
 func submitSessionReply(ctx context.Context, brokerID uint32, req sessionRequest) ([]byte, error) {
 	ex, err := sdk.ExecutorForInvoke(ctx, brokerID)
 	if err != nil {
 		return nil, fmt.Errorf("session: reverse leg: %w", err)
 	}
-	reqJSON, err := json.Marshal(req)
+	class, word, reqJSON, err := sessionInvokeArgs(req)
 	if err != nil {
-		return nil, fmt.Errorf("session: encode request: %w", err)
+		return nil, err
 	}
-	return ex.InvokeProvider(ctx, "verb", "session", ops.OpExecute, reqJSON, nil, ops.InvokeProviderOpts{})
+	return ex.InvokeProvider(ctx, class, word, ops.OpExecute, reqJSON, nil, ops.InvokeProviderOpts{})
 }
