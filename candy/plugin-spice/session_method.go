@@ -57,8 +57,20 @@ type sessionStatusReply struct {
 // recorder re-dials it detached. venueDefault is the CheckEnv snapshot's venue id,
 // used when the authored input carries none (evidence-row provenance).
 func runSession(ctx context.Context, brokerID uint32, ep *spiceEndpoint, in *params.SpiceInput, venueDefault string) (string, error) {
+	// session identity: the runner injects session_id for instruments; a PLAN-STEP session
+	// (authoring `spice: {method: session, action: start, record_name: x}` directly in a plan)
+	// falls back to record_name, then "default" - the same fallback the record session uses.
 	if in.SessionId == "" {
-		return "", fmt.Errorf("session requires session_id")
+		in.SessionId = in.RecordName
+	}
+	if in.SessionId == "" {
+		in.SessionId = "default"
+	}
+	// state_dir is runner-injected for instruments; a plan-step session derives its own
+	// under the host temp dir (the row.json + frames live there; instrument sessions
+	// always receive the run-dir state dir).
+	if in.StateDir == "" {
+		in.StateDir = filepath.Join(os.TempDir(), "charly-session", in.SessionId)
 	}
 	switch in.Action {
 	case "start":
