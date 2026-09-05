@@ -28,44 +28,44 @@ package params
 type SpiceInput struct {
 	// method — the spice method to dispatch (the former core #SpiceMethod enum;
 	// also the scalar-sugar primary: `spice: <method>`).
-	Method string `yaml:"method,omitempty" json:"method"`
+	Method string `json:"method" yaml:"method,omitempty"`
 
 	// action — start|stop for a record session (record); start|stop|status for a
 	// session (session). record start begins capturing the display framebuffer at
 	// fps into an MJPEG stream; record stop flushes it to artifact.
-	Action string `yaml:"action,omitempty" json:"action,omitempty"`
+	Action string `json:"action,omitempty" yaml:"action,omitempty,omitempty"`
 
 	// record_name — the recording session name (default "default"); multiple
 	// concurrent sessions supported.
-	RecordName string `yaml:"record_name,omitempty" json:"record_name,omitempty"`
+	RecordName string `json:"record_name,omitempty" yaml:"record_name,omitempty,omitempty"`
 
 	// fps — the display-frame capture rate for record (default 5).
-	Fps int `yaml:"fps,omitempty" json:"fps,omitempty"`
+	Fps int `json:"fps,omitempty" yaml:"fps,omitempty,omitempty"`
 
 	// x / y — guest-absolute coordinates (click/mouse).
-	X int `yaml:"x,omitempty" json:"x,omitempty"`
+	X int `json:"x,omitempty" yaml:"x,omitempty,omitempty"`
 
-	Y int `yaml:"y,omitempty" json:"y,omitempty"`
+	Y int `json:"y,omitempty" yaml:"y,omitempty,omitempty"`
 
 	// button — the mouse button for click (left/right/middle; default left).
-	Button string `yaml:"button,omitempty" json:"button,omitempty"`
+	Button string `json:"button,omitempty" yaml:"button,omitempty,omitempty"`
 
 	// text — the text `type` types (PC-AT scancode sequence).
-	Text string `yaml:"text,omitempty" json:"text,omitempty"`
+	Text string `json:"text,omitempty" yaml:"text,omitempty,omitempty"`
 
 	// key — the named key `key` presses.
-	KeyName string `yaml:"key,omitempty" json:"key,omitempty"`
+	KeyName string `json:"key,omitempty" yaml:"key,omitempty,omitempty"`
 
 	// artifact — the host path `screenshot`/`cursor` writes the PNG to.
-	Artifact string `yaml:"artifact,omitempty" json:"artifact,omitempty"`
+	Artifact string `json:"artifact,omitempty" yaml:"artifact,omitempty,omitempty"`
 
 	// artifact_min_bytes / artifact_min_dimensions / artifact_not_uniform — the
 	// post-run artifact-reality assertions (sdk.RunArtifactValidators).
-	ArtifactMinBytes int `yaml:"artifact_min_bytes,omitempty" json:"artifact_min_bytes,omitempty"`
+	ArtifactMinBytes int `json:"artifact_min_bytes,omitempty" yaml:"artifact_min_bytes,omitempty,omitempty"`
 
-	ArtifactMinDimensions string `yaml:"artifact_min_dimensions,omitempty" json:"artifact_min_dimensions,omitempty"`
+	ArtifactMinDimensions string `json:"artifact_min_dimensions,omitempty" yaml:"artifact_min_dimensions,omitempty,omitempty"`
 
-	ArtifactNotUniform bool `yaml:"artifact_not_uniform,omitempty" json:"artifact_not_uniform,omitempty"`
+	ArtifactNotUniform bool `json:"artifact_not_uniform,omitempty" yaml:"artifact_not_uniform,omitempty,omitempty"`
 
 	// session — the DETACHED host-side recorder (Cutover A, A-task-2b): `spice: session` starts
 	// the plugin's OWN binary in recorder mode through the runner's generic
@@ -73,11 +73,17 @@ type SpiceInput struct {
 	// holds the SPICE wire itself — the provider stays wire-free — polls the display
 	// at fps into state_dir/frames.mjpeg, and on SIGTERM finalizes with the FINAL
 	// marker + the evidence row.json. venue/phase are stamped into the evidence row.
-	SessionId string `yaml:"session_id,omitempty" json:"session_id,omitempty"`
+	SessionId string `json:"session_id,omitempty" yaml:"session_id,omitempty,omitempty"`
 
-	StateDir string `yaml:"state_dir,omitempty" json:"state_dir,omitempty"`
+	StateDir string `json:"state_dir,omitempty" yaml:"state_dir,omitempty,omitempty"`
 
-	Venue string `yaml:"venue,omitempty" json:"venue,omitempty"`
+	// artifact_dir — the runner-injected generic evidence-artifact dir (verb-agnostic;
+	// the provider appends its own filename/extension).
+	ArtifactDir string `json:"artifact_dir,omitempty" yaml:"artifact_dir,omitempty,omitempty"`
 
-	Phase string `yaml:"phase,omitempty" json:"phase,omitempty"`
+	LogDir string `json:"log_dir,omitempty" yaml:"log_dir,omitempty,omitempty"`
+
+	Venue string `json:"venue,omitempty" yaml:"venue,omitempty,omitempty"`
+
+	Phase string `json:"phase,omitempty" yaml:"phase,omitempty,omitempty"`
 }
