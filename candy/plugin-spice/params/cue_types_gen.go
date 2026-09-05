@@ -30,6 +30,18 @@ type SpiceInput struct {
 	// also the scalar-sugar primary: `spice: <method>`).
 	Method string `yaml:"method,omitempty" json:"method"`
 
+	// action — start|stop for a record session (record); start|stop|status for a
+	// session (session). record start begins capturing the display framebuffer at
+	// fps into an MJPEG stream; record stop flushes it to artifact.
+	Action string `yaml:"action,omitempty" json:"action,omitempty"`
+
+	// record_name — the recording session name (default "default"); multiple
+	// concurrent sessions supported.
+	RecordName string `yaml:"record_name,omitempty" json:"record_name,omitempty"`
+
+	// fps — the display-frame capture rate for record (default 5).
+	Fps int `yaml:"fps,omitempty" json:"fps,omitempty"`
+
 	// x / y — guest-absolute coordinates (click/mouse).
 	X int `yaml:"x,omitempty" json:"x,omitempty"`
 
@@ -55,12 +67,17 @@ type SpiceInput struct {
 
 	ArtifactNotUniform bool `yaml:"artifact_not_uniform,omitempty" json:"artifact_not_uniform,omitempty"`
 
-	// action — start|stop for a record session (record).
-	Action string `yaml:"action,omitempty" json:"action,omitempty"`
+	// session — the DETACHED host-side recorder (Cutover A, A-task-2b): `spice: session` starts
+	// the plugin's OWN binary in recorder mode through the runner's generic
+	// background-session service (plugin-check's verb:session seam). The recorder
+	// holds the SPICE wire itself — the provider stays wire-free — polls the display
+	// at fps into state_dir/frames.mjpeg, and on SIGTERM finalizes with the FINAL
+	// marker + the evidence row.json. venue/phase are stamped into the evidence row.
+	SessionId string `yaml:"session_id,omitempty" json:"session_id,omitempty"`
 
-	// record_name — the recording session name (default "default").
-	RecordName string `yaml:"record_name,omitempty" json:"record_name,omitempty"`
+	StateDir string `yaml:"state_dir,omitempty" json:"state_dir,omitempty"`
 
-	// fps — the display-frame capture rate for record (default 5).
-	Fps int `yaml:"fps,omitempty" json:"fps,omitempty"`
+	Venue string `yaml:"venue,omitempty" json:"venue,omitempty"`
+
+	Phase string `yaml:"phase,omitempty" json:"phase,omitempty"`
 }

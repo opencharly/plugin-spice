@@ -161,12 +161,21 @@ func (rs *recordSession) tick() {
 
 // appendLocked encodes one frame into the MJPEG stream (caller holds rs.mu).
 func (rs *recordSession) appendLocked(img image.Image) {
+	if b := encodeFrame(img); len(b) > 0 {
+		rs.buf.Write(b)
+		rs.count++
+	}
+}
+
+// encodeFrame encodes one display frame as a JPEG — the SINGLE encoder shared by
+// the record poller (appendLocked) and the detached session recorder (recorder.go,
+// R3: one encoder). A nil return means the encoder rejected the frame.
+func encodeFrame(img image.Image) []byte {
 	var b bytes.Buffer
 	if err := jpeg.Encode(&b, img, &jpeg.Options{Quality: 80}); err != nil {
-		return
+		return nil
 	}
-	rs.buf.Write(b.Bytes())
-	rs.count++
+	return b.Bytes()
 }
 
 // writeArtifact writes the MJPEG stream to the host artifact path.

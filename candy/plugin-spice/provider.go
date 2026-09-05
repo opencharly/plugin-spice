@@ -35,10 +35,12 @@ type spiceEndpoint struct {
 
 // spiceEnv is the plugin-side decode of the CheckEnv the host ships as Operation.Env
 // for a `spice:` check step (provider_checkenv.go). Box/Mode mirror the shared CheckEnv; the
-// endpoint is no longer pre-shipped — the plugin resolves it via cc.ResolveGraphicsEndpoint.
+// endpoint is no longer pre-shipped — the plugin resolves it via cc.ResolveGraphicsEndpoint;
+// Venue is the shared snapshot's venue id (session evidence-row provenance).
 type spiceEnv struct {
-	Box  string `json:"box"`
-	Mode string `json:"mode"` // "live" | "box"
+	Box   string `json:"box"`
+	Mode  string `json:"mode"` // "live" | "box"
+	Venue string `json:"venue"`
 }
 
 type provider struct{ pb.UnimplementedProviderServer }
@@ -89,6 +91,17 @@ func (provider) Invoke(ctx context.Context, req *pb.InvokeRequest) (*pb.InvokeRe
 		return sdk.ResultJSON("skip", fmt.Sprintf("spice: %s has no VM SPICE endpoint (box=%q)", method, env.Box))
 	}
 	ep := &spiceEndpoint{Address: ge.Addr, Socket: ge.Socket, Password: ge.Password}
+
+	// session (A-task-2b): the DETACHED recorder holds the SPICE wire — the provider
+	// never dials. The endpoint resolution above gates on the live VM (mirroring the
+	// record method); start hands the spawn to the runner's generic background-session
+	// service (verb:session) over the InvokeProvider reverse leg; stop/status talk to
+	// that same service. No artifact is produced inside this Invoke (the recorder
+	// writes frames.mjpeg detached), so artifactMethod stays false.
+	if method == "session" {
+		out, runErr := runSession(ctx, req.GetExecutorBrokerId(), ep, &in, env.Venue)
+		return sdk.VerbVerdict("spice", method, out, runErr, &op, false)
+	}
 
 	s, dialErr := dialEndpoint(ep)
 	if dialErr != nil {
