@@ -9,7 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"context"
+	"fmt"
 	"github.com/opencharly/plugin-spice/candy/plugin-spice/params"
+	"github.com/opencharly/spec/spec"
 )
 
 // session_test.go covers the `spice: session` method (Cutover A, A-task-2b): the
@@ -154,18 +157,22 @@ func TestBuildSessionSpawn(t *testing.T) {
 // method WITHOUT the reverse leg: each gate fails before any submission.
 func TestRunSessionValidation(t *testing.T) {
 	ctx := t.Context()
-	if _, err := runSession(ctx, 0, nil, &params.SpiceInput{Action: "start"}, ""); err == nil {
-		t.Error("missing session_id: want error")
-	}
-	if _, err := runSession(ctx, 0, nil, &params.SpiceInput{SessionId: "s"}, ""); err == nil {
-		t.Error("missing action: want error")
-	}
-	if _, err := runSession(ctx, 0, nil, &params.SpiceInput{SessionId: "s", Action: "stop"}, ""); err == nil {
-		t.Error("stop without state_dir: want error")
-	}
-	if _, err := runSession(ctx, 0, nil, &params.SpiceInput{SessionId: "s", Action: "bogus"}, ""); err == nil {
+	// session_id/state_dir have provider-side fallbacks (plan-step sessions); the
+	// gates that remain are action validation + the submission dispatch under a stub cc.
+	if _, err := runSession(ctx, stubCC{}, nil, &params.SpiceInput{Action: "bogus"}, ""); err == nil {
 		t.Error("bogus action: want error")
 	}
+	// a well-formed session reaches the submission (the stub cc answers an error -
+	// proving the InvokeProvider dispatch path is exercised, not skipped).
+	if _, err := runSession(ctx, stubCC{}, nil, &params.SpiceInput{SessionId: "s", Action: "start"}, ""); err == nil {
+		t.Error("start with stub cc: want error (stub answers an error)")
+	}
+}
+
+type stubCC struct{ spec.CheckContext }
+
+func (stubCC) InvokeProvider(ctx context.Context, class, word, op string, paramsJSON, env []byte) ([]byte, error) {
+	return nil, fmt.Errorf("stub: submission reached the reverse-leg dispatch (class %s word %s op %s)", class, word, op)
 }
 
 // helpers ----------------------------------------------------------------

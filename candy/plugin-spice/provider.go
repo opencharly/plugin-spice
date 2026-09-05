@@ -99,7 +99,7 @@ func (provider) Invoke(ctx context.Context, req *pb.InvokeRequest) (*pb.InvokeRe
 	// that same service. No artifact is produced inside this Invoke (the recorder
 	// writes frames.mjpeg detached), so artifactMethod stays false.
 	if method == "session" {
-		out, runErr := runSession(ctx, req.GetExecutorBrokerId(), ep, &in, env.Venue)
+		out, runErr := runSession(ctx, cc, ep, &in, env.Venue)
 		return sdk.VerbVerdict("spice", method, out, runErr, &op, false)
 	}
 

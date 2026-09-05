@@ -25,14 +25,15 @@ package spice
 
 import (
 	"context"
+
 	"encoding/json"
 	"fmt"
+	"github.com/opencharly/sdk/kit"
 	"os"
 	"path/filepath"
 	"strconv"
 
 	"github.com/opencharly/plugin-spice/candy/plugin-spice/params"
-	"github.com/opencharly/sdk"
 	"github.com/opencharly/spec/ops"
 )
 
@@ -56,7 +57,7 @@ type sessionStatusReply struct {
 // is the PROVIDER-resolved one (the Invoke already ran ResolveGraphicsEndpoint); the
 // recorder re-dials it detached. venueDefault is the CheckEnv snapshot's venue id,
 // used when the authored input carries none (evidence-row provenance).
-func runSession(ctx context.Context, brokerID uint32, ep *spiceEndpoint, in *params.SpiceInput, venueDefault string) (string, error) {
+func runSession(ctx context.Context, cc kit.CheckContext, ep *spiceEndpoint, in *params.SpiceInput, venueDefault string) (string, error) {
 	// session identity: the runner injects session_id for instruments; a PLAN-STEP session
 	// (authoring `spice: {method: session, action: start, record_name: x}` directly in a plan)
 	// falls back to record_name, then "default" - the same fallback the record session uses.
@@ -74,11 +75,11 @@ func runSession(ctx context.Context, brokerID uint32, ep *spiceEndpoint, in *par
 	}
 	switch in.Action {
 	case "start":
-		return sessionStart(ctx, brokerID, ep, in, venueDefault)
+		return sessionStart(ctx, cc, ep, in, venueDefault)
 	case "stop":
-		return sessionStop(ctx, brokerID, in)
+		return sessionStop(ctx, cc, in)
 	case "status":
-		return sessionStatus(ctx, brokerID, in)
+		return sessionStatus(ctx, cc, in)
 	}
 	return "", fmt.Errorf("session requires action: start|stop|status")
 }
@@ -119,7 +120,7 @@ func buildSessionSpawn(in *params.SpiceInput, ep *spiceEndpoint, exe, venue, log
 // recorder spawn to the runner service and reports the session as started. state_dir
 // is REQUIRED: the recorder (and the runner's handle) land the capture + evidence
 // there, and the A-task-4 instrument lifecycle reads row.json back from it.
-func sessionStart(ctx context.Context, brokerID uint32, ep *spiceEndpoint, in *params.SpiceInput, venueDefault string) (string, error) {
+func sessionStart(ctx context.Context, cc kit.CheckContext, ep *spiceEndpoint, in *params.SpiceInput, venueDefault string) (string, error) {
 	if in.StateDir == "" {
 		return "", fmt.Errorf("session start: state_dir required")
 	}
@@ -137,7 +138,7 @@ func sessionStart(ctx context.Context, brokerID uint32, ep *spiceEndpoint, in *p
 	// lifecycle threads one over the wire.
 	logDir := ""
 	req := buildSessionSpawn(in, ep, exe, venue, logDir)
-	if err := submitSession(ctx, brokerID, req); err != nil {
+	if err := submitSession(ctx, cc, req); err != nil {
 		return "", fmt.Errorf("session start: %w", err)
 	}
 	return fmt.Sprintf("session %s started", in.SessionId), nil
@@ -146,12 +147,12 @@ func sessionStart(ctx context.Context, brokerID uint32, ep *spiceEndpoint, in *p
 // sessionStop signals the runner to finalize the session (SIGTERM to the detached
 // recorder), then verifies the recorder's finalize actually landed: the evidence
 // row.json must exist in the state dir. Returns a one-line summary of the row.
-func sessionStop(ctx context.Context, brokerID uint32, in *params.SpiceInput) (string, error) {
+func sessionStop(ctx context.Context, cc kit.CheckContext, in *params.SpiceInput) (string, error) {
 	if in.StateDir == "" {
 		return "", fmt.Errorf("session stop: state_dir required to verify the evidence row")
 	}
 	req := sessionRequest{Op: "stop", SessionID: in.SessionId}
-	if err := submitSession(ctx, brokerID, req); err != nil {
+	if err := submitSession(ctx, cc, req); err != nil {
 		return "", fmt.Errorf("session stop: %w", err)
 	}
 	rowPath := filepath.Join(in.StateDir, evidenceFile)
@@ -178,9 +179,9 @@ func rowArtifact(row evidenceRow) string {
 }
 
 // sessionStatus asks the runner for the session handle's liveness and reports it.
-func sessionStatus(ctx context.Context, brokerID uint32, in *params.SpiceInput) (string, error) {
+func sessionStatus(ctx context.Context, cc kit.CheckContext, in *params.SpiceInput) (string, error) {
 	req := sessionRequest{Op: "status", SessionID: in.SessionId}
-	raw, err := submitSessionReply(ctx, brokerID, req)
+	raw, err := submitSessionReply(ctx, cc, req)
 	if err != nil {
 		return "", fmt.Errorf("session status: %w", err)
 	}
@@ -192,8 +193,8 @@ func sessionStatus(ctx context.Context, brokerID uint32, in *params.SpiceInput) 
 }
 
 // submitSession sends a session-service request; success is the empty reply.
-func submitSession(ctx context.Context, brokerID uint32, req sessionRequest) error {
-	_, err := submitSessionReply(ctx, brokerID, req)
+func submitSession(ctx context.Context, cc kit.CheckContext, req sessionRequest) error {
+	_, err := submitSessionReply(ctx, cc, req)
 	return err
 }
 
@@ -213,14 +214,10 @@ func sessionInvokeArgs(req sessionRequest) (string, string, []byte, error) {
 	return "verb", "session", reqJSON, nil
 }
 
-func submitSessionReply(ctx context.Context, brokerID uint32, req sessionRequest) ([]byte, error) {
-	ex, err := sdk.ExecutorForInvoke(ctx, brokerID)
-	if err != nil {
-		return nil, fmt.Errorf("session: reverse leg: %w", err)
-	}
+func submitSessionReply(ctx context.Context, cc kit.CheckContext, req sessionRequest) ([]byte, error) {
 	class, word, reqJSON, err := sessionInvokeArgs(req)
 	if err != nil {
 		return nil, err
 	}
-	return ex.InvokeProvider(ctx, class, word, ops.OpExecute, reqJSON, nil, ops.InvokeProviderOpts{})
+	return cc.InvokeProvider(ctx, class, word, ops.OpExecute, reqJSON, nil)
 }
