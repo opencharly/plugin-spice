@@ -118,12 +118,24 @@ func (provider) Invoke(ctx context.Context, req *pb.InvokeRequest) (*pb.InvokeRe
 	// validators itself.
 	artifactMethod := method == "screenshot" || method == "cursor" || (method == "record" && in.Action == "stop")
 	if runErr == nil && artifactMethod {
-		if err := sdk.LandArtifact(ctx, nil, "", in.Artifact, &op); err != nil {
-			return sdk.ResultJSON("fail", fmt.Sprintf("spice: %s: %v", method, err))
+		if reply, err := landArtifactLeg(ctx, method, in.Artifact, &op); err != nil || reply != nil {
+			return reply, err
 		}
 	}
 	// The shared exit/stdout/stderr verdict pipeline (R3).
 	return sdk.VerbVerdict("spice", method, out, runErr, &op, false)
+}
+
+// landArtifactLeg lands one produced artifact through sdk.LandArtifact and maps a
+// validation failure to the shared wire reply. spice is a HOST-side producer, so the
+// host-side leg runs: a nil executor and a blank venue path make sdk.LandArtifact
+// validate the file the plugin already wrote in place — no pull, no write. Extracted
+// so the leg is unit-testable without a live SPICE session (B12).
+func landArtifactLeg(ctx context.Context, method, artifact string, op *spec.Op) (*pb.InvokeReply, error) {
+	if err := sdk.LandArtifact(ctx, nil, "", artifact, op); err != nil {
+		return sdk.ResultJSON("fail", fmt.Sprintf("spice: %s: %v", method, err))
+	}
+	return nil, nil
 }
 
 // dialEndpoint opens a SPICE session against the host-pre-resolved endpoint —
