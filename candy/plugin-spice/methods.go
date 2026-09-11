@@ -16,7 +16,7 @@ import (
 // charly/spice.go, refactored from CLI Run() methods that PRINTED to stdout into
 // functions that RETURN the captured output string (status) or WRITE a PNG artifact
 // + return a one-line confirmation (screenshot/cursor) — so provider.go can feed the
-// output through the shared sdk matcher pipeline + sdk.RunArtifactValidators (the
+// output through the shared sdk matcher pipeline + sdk.LandArtifact (the
 // host-side matcher step does not run for an out-of-process verb). The
 // SPICE wire behaviour, the PC-AT scancode tables, and the status tokens are
 // unchanged, so a bed authored against the in-tree verb passes unchanged.
