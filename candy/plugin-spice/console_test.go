@@ -245,3 +245,33 @@ func TestResolveConsoleRecipe_NilExecutor(t *testing.T) {
 		t.Fatalf("the no-executor error must name the reverse channel, got %v", err)
 	}
 }
+
+// recordingKeySink records the exact down/up byte sequence pressCombo dispatches.
+type recordingKeySink struct {
+	downs [][]byte
+	ups   [][]byte
+}
+
+func (r *recordingKeySink) OnKeyDown(b []byte) { r.downs = append(r.downs, append([]byte(nil), b...)) }
+func (r *recordingKeySink) OnKeyUp(b []byte)   { r.ups = append(r.ups, append([]byte(nil), b...)) }
+
+// TestPressCombo_DispatchesDownThenUp drives pressCombo's OWN dispatch loop (the
+// path spiceTransport.PressCombo calls) over a recording sink: it must press both
+// scancodes on the way down and release them in reverse on the way up. Deleting
+// pressCombo's body (or its loop) makes this FAIL; the pure chordEvents test alone
+// did not touch this loop.
+func TestPressCombo_DispatchesDownThenUp(t *testing.T) {
+	sink := &recordingKeySink{}
+	if err := pressCombo(sink, "ctrl+c"); err != nil {
+		t.Fatalf("pressCombo: %v", err)
+	}
+	if len(sink.downs) != 2 || len(sink.ups) != 2 {
+		t.Fatalf("pressCombo must dispatch 2 downs + 2 ups, got %d/%d", len(sink.downs), len(sink.ups))
+	}
+	if string(sink.ups[0]) != string(sink.downs[1]) || string(sink.ups[1]) != string(sink.downs[0]) {
+		t.Fatalf("release must be the reverse of press: downs=%v ups=%v", sink.downs, sink.ups)
+	}
+	if err := pressCombo(sink, "nope"); err == nil {
+		t.Fatal("an unknown key must error before any dispatch")
+	}
+}

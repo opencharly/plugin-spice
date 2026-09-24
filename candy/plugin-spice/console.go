@@ -72,7 +72,10 @@ func (t spiceTransport) PressKey(ctx context.Context, name string) error {
 }
 
 func (t spiceTransport) PressCombo(ctx context.Context, combo string) error {
-	return pressCombo(t.s, combo)
+	if err := t.s.WaitForInputs(readinessWait); err != nil {
+		return err
+	}
+	return pressCombo(t.s.Inputs(), combo)
 }
 
 func (t spiceTransport) Type(ctx context.Context, text string) error {
@@ -160,21 +163,29 @@ func buildWizardPlan(ctx context.Context, ex *sdk.Executor, in *params.SpiceInpu
 // pressCombo presses a modifier chord ("ctrl+c", "ctrl+alt+Delete"). It resolves
 // each `+`-separated token to a scancode and holds all keys down, then releases
 // them in reverse — the same chord semantics the jetkvm transport uses.
-func pressCombo(s *SpiceSession, combo string) error {
-	if err := s.WaitForInputs(readinessWait); err != nil {
-		return err
-	}
+// keySink is the slice of *spice.ChInputs pressCombo drives. It is an interface
+// so pressCombo's own dispatch loop is unit-testable with a fake; the real
+// *spice.ChInputs (from a live session) satisfies it, so production is unchanged.
+type keySink interface {
+	OnKeyDown([]byte)
+	OnKeyUp([]byte)
+}
+
+// pressCombo sends a modifier chord to the sink: each scancode pressed in order,
+// held for chordHold, then released in reverse. The readiness wait lives in the
+// transport (it needs the live session); this is the pure dispatch half, so its
+// exact down/up loop is unit-locked.
+func pressCombo(sink keySink, combo string) error {
 	downs, ups, err := chordEvents(combo)
 	if err != nil {
 		return err
 	}
-	in := s.Inputs()
 	for _, b := range downs {
-		in.OnKeyDown(b)
+		sink.OnKeyDown(b)
 	}
 	time.Sleep(chordHold)
 	for _, b := range ups {
-		in.OnKeyUp(b)
+		sink.OnKeyUp(b)
 	}
 	return nil
 }
