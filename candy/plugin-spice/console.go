@@ -69,6 +69,17 @@ func (t spiceTransport) Type(ctx context.Context, text string) error {
 // engine. It resolves a referenced console-recipe entity (the transport-neutral
 // recipe home) when `device:`/`recipe:` are authored, then runs the recipe.
 func runWizard(ctx context.Context, ex *sdk.Executor, brokerID uint32, s *SpiceSession, in *params.SpiceInput) (string, error) {
+	return runWizardWith(ctx, ex, brokerID, spiceTransport{s: s}, nil, in)
+}
+
+// runWizardWith is runWizard over an injected transport and OCR. Production
+// passes the real spiceTransport and a nil OCR (the engine's default OCRBytes);
+// a test passes a fake transport and a fake OCR, because a FABRICATED screen
+// cannot yield real tesseract text. Every element that ships is therefore
+// exercised: the plan build, the three-source merge, and the engine drive with
+// the PRODUCTION PollInterval/timeout defaults — only the two boundaries a
+// synthetic screen forces (screen bytes + their OCR) are substituted.
+func runWizardWith(ctx context.Context, ex *sdk.Executor, brokerID uint32, tr kit.ConsoleTransport, ocr func([]byte) (string, error), in *params.SpiceInput) (string, error) {
 	steps, answers, err := buildWizardPlan(ctx, ex, brokerID, in, nil)
 	if err != nil {
 		return "", err
@@ -76,7 +87,8 @@ func runWizard(ctx context.Context, ex *sdk.Executor, brokerID uint32, s *SpiceS
 	w := &kit.ConsoleWizard{
 		Steps:     steps,
 		Answers:   answers,
-		Transport: spiceTransport{s: s},
+		Transport: tr,
+		OCR:       ocr,
 	}
 	return w.Run(ctx)
 }
@@ -108,7 +120,9 @@ func buildWizardPlan(ctx context.Context, ex *sdk.Executor, brokerID uint32, in 
 			if recipeName == "" {
 				recipeName = defaultRecipeName
 			}
-			steps, err = kit.SelectRecipe(paramsRecipesToKit(ent.Recipes), steps, recipeName)
+			// The entity's `steps:` is the single-recipe SHORTCUT; SelectRecipe
+			// returns it when no named recipe matches and name=="install".
+			steps, err = kit.SelectRecipe(paramsRecipesToKit(ent.Recipes), paramsStepsToKit(ent.Steps), recipeName)
 			if err != nil {
 				return nil, nil, fmt.Errorf("spice: device %q: %w", in.Device, err)
 			}
@@ -135,17 +149,9 @@ func pressCombo(s *SpiceSession, combo string) error {
 	if err := s.WaitForInputs(5 * time.Second); err != nil {
 		return err
 	}
-	parts := strings.Split(combo, "+")
-	if len(parts) == 0 {
-		return fmt.Errorf("empty key combo")
-	}
-	codes := make([]uint8, 0, len(parts))
-	for _, p := range parts {
-		code, ok := spiceKeyNameToScancode[strings.ToLower(strings.TrimSpace(p))]
-		if !ok {
-			return fmt.Errorf("unknown key in combo: %s", p)
-		}
-		codes = append(codes, code)
+	codes, err := comboScancodes(combo)
+	if err != nil {
+		return err
 	}
 	in := s.Inputs()
 	for _, c := range codes {
@@ -156,6 +162,25 @@ func pressCombo(s *SpiceSession, combo string) error {
 		in.OnKeyUp(encodeScancode(codes[i]))
 	}
 	return nil
+}
+
+// comboScancodes resolves a modifier chord ("ctrl+c", "ctrl+alt+Delete") to its
+// ordered scancode list. It is PURE, so the chord contract (split on '+', trim,
+// case-insensitive key names, unknowns rejected) is unit-locked with no session.
+func comboScancodes(combo string) ([]uint8, error) {
+	parts := strings.Split(combo, "+")
+	codes := make([]uint8, 0, len(parts))
+	for _, p := range parts {
+		code, ok := spiceKeyNameToScancode[strings.ToLower(strings.TrimSpace(p))]
+		if !ok {
+			return nil, fmt.Errorf("unknown key in combo: %s", p)
+		}
+		codes = append(codes, code)
+	}
+	if len(codes) == 0 {
+		return nil, fmt.Errorf("empty key combo")
+	}
+	return codes, nil
 }
 
 // --- console-recipe entity resolution ---------------------------------------

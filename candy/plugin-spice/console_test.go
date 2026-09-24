@@ -52,6 +52,21 @@ func TestBuildWizardPlan_EntityRecipeAndAnswerMerge(t *testing.T) {
 	}
 }
 
+// TestBuildWizardPlan_EntityStepsShortcut pins that the entity's bare steps:
+// shortcut (no named recipes) is actually read — the single-recipe device shape.
+func TestBuildWizardPlan_EntityStepsShortcut(t *testing.T) {
+	ent := &params.SpiceConsoleRecipe{Steps: []params.SpiceConsoleStep{{WaitFor: "shortcut"}}}
+	stub := func(context.Context, *sdk.Executor, string) (*params.SpiceConsoleRecipe, error) { return ent, nil }
+	in := &params.SpiceInput{Device: "single-recipe-device"}
+	steps, _, err := buildWizardPlan(context.Background(), nil, 0, in, stub)
+	if err != nil {
+		t.Fatalf("buildWizardPlan: %v", err)
+	}
+	if len(steps) != 1 || steps[0].WaitFor != "shortcut" {
+		t.Fatalf("the entity's steps: shortcut was not read: %+v", steps)
+	}
+}
+
 // TestBuildWizardPlan_RequiresStepsOrDevice pins the guard.
 func TestBuildWizardPlan_RequiresStepsOrDevice(t *testing.T) {
 	if _, _, err := buildWizardPlan(context.Background(), nil, 0, &params.SpiceInput{}, nil); err == nil {
@@ -81,7 +96,7 @@ type fakeTransport struct {
 	keys, combos, types []string
 }
 
-func (f *fakeTransport) Capture(context.Context) ([]byte, error) { return []byte("always-here"), nil }
+func (f *fakeTransport) Capture(context.Context) ([]byte, error) { return []byte("screen-bytes"), nil }
 func (f *fakeTransport) PressKey(_ context.Context, k string) error {
 	f.keys = append(f.keys, k)
 	return nil
@@ -97,9 +112,10 @@ func (f *fakeTransport) Type(_ context.Context, s string) error {
 
 var _ kit.ConsoleTransport = (*fakeTransport)(nil)
 
-// TestWizardEngineWiring drives the shared engine over a fake transport using the
-// plan buildWizardPlan produces, so the `wizard` method's whole path — recipe
-// conversion, plan build, OCR wait, input dispatch — is exercised without a VM.
+// TestWizardEngineWiring drives the shared engine over a fake transport through
+// runWizardWith — the SAME function runWizard calls — so the `wizard` method's
+// whole production path (recipe conversion, plan build, OCR wait, input dispatch,
+// and the exact ConsoleWizard config that ships) is exercised without a VM.
 func TestWizardEngineWiring(t *testing.T) {
 	in := &params.SpiceInput{
 		Steps: []params.SpiceConsoleStep{
@@ -112,15 +128,14 @@ func TestWizardEngineWiring(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildWizardPlan: %v", err)
 	}
+	_ = steps
+	_ = answers
 	ft := &fakeTransport{}
-	w := &kit.ConsoleWizard{
-		Steps:        steps,
-		Answers:      answers,
-		Transport:    ft,
-		OCR:          func([]byte) (string, error) { return "always-here", nil },
-		PollInterval: 0,
-	}
-	out, err := w.Run(context.Background())
+	// Drive the PRODUCTION wiring: runWizardWith builds the ConsoleWizard exactly
+	// as runWizard does (production PollInterval/timeout defaults). Only OCR is
+	// substituted, because a fabricated screen cannot yield real tesseract text.
+	fakeOCR := func([]byte) (string, error) { return "always-here", nil }
+	out, err := runWizardWith(context.Background(), nil, 0, ft, fakeOCR, in)
 	if err != nil {
 		t.Fatalf("wizard run: %v", err)
 	}
@@ -132,5 +147,19 @@ func TestWizardEngineWiring(t *testing.T) {
 	}
 	if len(ft.types) != 1 || ft.types[0] != "someone" {
 		t.Fatalf("answer substitution / type failed: %+v", ft.types)
+	}
+}
+
+// TestComboScancodes pins the pure chord resolver.
+func TestComboScancodes(t *testing.T) {
+	codes, err := comboScancodes("ctrl+c")
+	if err != nil || len(codes) != 2 {
+		t.Fatalf("ctrl+c: %v %v", codes, err)
+	}
+	if _, err := comboScancodes("ctrl+nope"); err == nil {
+		t.Fatal("an unknown key must be rejected")
+	}
+	if _, err := comboScancodes(""); err == nil {
+		t.Fatal("an empty combo must be rejected")
 	}
 }

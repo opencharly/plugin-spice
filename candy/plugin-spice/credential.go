@@ -23,8 +23,14 @@ import (
 const credentialService = "charly/secret"
 
 // credentialGetInput / credentialGetReply mirror verb:credential's `get` wire
-// shape. The cross-module contract carries no shared Go type, so each consumer
-// keeps a JSON-tag-compatible mirror, exactly as the core adapter does.
+// shape. This is the ESTABLISHED cross-boundary exception (RCA): the
+// verb:credential contract carries NO shared Go type — it crosses a module
+// boundary as JSON over the InvokeProvider reverse leg — so the core adapter AND
+// every existing consumer (candy/plugin-jetkvm/credential.go,
+// candy/plugin-adb, candy/plugin-vm) keep a byte-identical JSON-tag mirror. The
+// same exception the SDD rules allow for a contract with no CUE-sourced shape;
+// this mirrors plugin-jetkvm's PRE-EXISTING file verbatim, so there is one shape
+// in the vocabulary, not a new one per plugin.
 type credentialGetInput struct {
 	Method  string `json:"method"`
 	Service string `json:"service,omitempty"`
