@@ -1,7 +1,10 @@
 package spice
 
 import (
+	"bytes"
 	"context"
+	"image"
+	"image/png"
 	"strings"
 	"testing"
 
@@ -161,5 +164,50 @@ func TestComboScancodes(t *testing.T) {
 	}
 	if _, err := comboScancodes(""); err == nil {
 		t.Fatal("an empty combo must be rejected")
+	}
+}
+
+// TestSpiceTransportCapture exercises the REAL spiceTransport.Capture over a real
+// *SpiceSession whose driver already holds a decoded frame — the in-package test
+// can populate the unexported driver directly, so the production adapter code
+// (WaitForDisplay → Display → PNG encode) executes with no wire. PNG bytes that
+// decode back to the same bounds prove it.
+func TestSpiceTransportCapture(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 4, 3))
+	s := &SpiceSession{driver: newSpiceDriver()}
+	s.driver.displayImg = img
+
+	tr := spiceTransport{s: s}
+	pngBytes, err := tr.Capture(context.Background())
+	if err != nil {
+		t.Fatalf("Capture: %v", err)
+	}
+	decoded, err := png.Decode(bytes.NewReader(pngBytes))
+	if err != nil {
+		t.Fatalf("captured bytes are not a PNG: %v", err)
+	}
+	if decoded.Bounds() != img.Bounds() {
+		t.Fatalf("captured bounds %v, want %v", decoded.Bounds(), img.Bounds())
+	}
+}
+
+// TestSpiceTransportCapture_NoFrame pins the failure when no frame is present.
+func TestSpiceTransportCapture_NoFrame(t *testing.T) {
+	s := &SpiceSession{driver: newSpiceDriver()}
+	tr := spiceTransport{s: s}
+	if _, err := tr.Capture(context.Background()); err == nil {
+		t.Fatal("Capture with no display frame must error")
+	}
+}
+
+// TestCredentialLookup_NoBroker pins the empty-broker path of the credential leg
+// (the branch that runs when there is no reverse channel): it resolves to "" and
+// never errors, so an absent store is not a hard failure.
+func TestCredentialLookup_NoBroker(t *testing.T) {
+	if got := credentialLookup(context.Background(), 0, "ANY_KEY"); got != "" {
+		t.Fatalf("no-broker lookup must be empty, got %q", got)
+	}
+	if got := credentialLookup(context.Background(), 1, ""); got != "" {
+		t.Fatalf("empty-key lookup must be empty, got %q", got)
 	}
 }
