@@ -121,3 +121,27 @@ type SpiceConsoleStep struct {
 
 	Description string `yaml:"description,omitempty" json:"description,omitempty"`
 }
+
+// #SpiceConsoleRecipe — the console-recipe bundle a `spice: wizard` step reads
+// from a transport-neutral console-recipe entity (a `kind: jetkvm` entity, the
+// recipe home BOTH transports share). It is the AUTHORED shape spice decodes;
+// the shared engine (sdk/kit) holds no wire type, so the shape lives here.
+type SpiceConsoleRecipe struct {
+	Recipes map[string][]SpiceConsoleStep `yaml:"recipes,omitempty" json:"recipes,omitempty"`
+
+	Steps []SpiceConsoleStep `yaml:"steps,omitempty" json:"steps,omitempty"`
+
+	Answers map[string]string `yaml:"answers,omitempty" json:"answers,omitempty"`
+
+	AnswersEnv map[string]string `yaml:"answers_env,omitempty" json:"answers_env,omitempty"`
+
+	AnswerSecrets map[string]string `yaml:"answer_secrets,omitempty" json:"answer_secrets,omitempty"`
+}
+
+// #SpiceConsoleRecipeEntity — the entity body half spice reads: the `installer`
+// recipe bundle. The rest of the entity (host, device fields) belongs to the
+// verb that OWNS the device (jetkvm); spice reads only the transport-neutral
+// recipe.
+type SpiceConsoleRecipeEntity struct {
+	Installer *SpiceConsoleRecipe `yaml:"installer,omitempty" json:"installer,omitempty"`
+}

@@ -88,3 +88,23 @@
 	artifact?: string
 	description?: string @go(Description)
 }
+
+// #SpiceConsoleRecipe — the console-recipe bundle a `spice: wizard` step reads
+// from a transport-neutral console-recipe entity (a `kind: jetkvm` entity, the
+// recipe home BOTH transports share). It is the AUTHORED shape spice decodes;
+// the shared engine (sdk/kit) holds no wire type, so the shape lives here.
+#SpiceConsoleRecipe: {
+	recipes?: {[string]: [...#SpiceConsoleStep]} @go(Recipes)
+	steps?: [...#SpiceConsoleStep] @go(Steps)
+	answers?: {[string]: string} @go(Answers)
+	answers_env?: {[string]: string} @go(AnswersEnv)
+	answer_secrets?: {[string]: string} @go(AnswerSecrets)
+}
+
+// #SpiceConsoleRecipeEntity — the entity body half spice reads: the `installer`
+// recipe bundle. The rest of the entity (host, device fields) belongs to the
+// verb that OWNS the device (jetkvm); spice reads only the transport-neutral
+// recipe.
+#SpiceConsoleRecipeEntity: {
+	installer?: #SpiceConsoleRecipe @go(Installer,optional=nillable)
+}

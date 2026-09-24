@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image/png"
+	"os"
 	"strings"
 	"time"
 
@@ -67,16 +68,40 @@ func (t spiceTransport) Type(ctx context.Context, text string) error {
 // runWizard drives a console recipe on the VM's SPICE session through the shared
 // engine. It resolves a referenced console-recipe entity (the transport-neutral
 // recipe home) when `device:`/`recipe:` are authored, then runs the recipe.
-func runWizard(ctx context.Context, ex *sdk.Executor, s *SpiceSession, in *params.SpiceInput) (string, error) {
+func runWizard(ctx context.Context, ex *sdk.Executor, brokerID uint32, s *SpiceSession, in *params.SpiceInput) (string, error) {
+	steps, answers, err := buildWizardPlan(ctx, ex, brokerID, in, nil)
+	if err != nil {
+		return "", err
+	}
+	w := &kit.ConsoleWizard{
+		Steps:     steps,
+		Answers:   answers,
+		Transport: spiceTransport{s: s},
+	}
+	return w.Run(ctx)
+}
+
+// buildWizardPlan resolves the steps + answers a wizard will run, WITHOUT a
+// transport. It is the one place entity resolution, recipe selection and the
+// three-source answer merge live, so the contract is unit-testable with a stubbed
+// entity resolver and a fake transport (R3 — one implementation, exercised by
+// both the live run and the test).
+//
+// resolveEnt is injected: nil means "resolve a referenced entity over the
+// reverse channel"; a test supplies a stub so no channel is needed.
+func buildWizardPlan(ctx context.Context, ex *sdk.Executor, brokerID uint32, in *params.SpiceInput, resolveEnt func(context.Context, *sdk.Executor, string) (*params.SpiceConsoleRecipe, error)) ([]kit.ConsoleStep, map[string]string, error) {
 	if len(in.Steps) == 0 && in.Device == "" {
-		return "", fmt.Errorf("spice: wizard requires a steps recipe (author `steps:` inline, or reference a console-recipe entity with `device:`/`recipe:`)")
+		return nil, nil, fmt.Errorf("spice: wizard requires a steps recipe (author `steps:` inline, or reference a console-recipe entity with `device:`/`recipe:`)")
+	}
+	if resolveEnt == nil {
+		resolveEnt = resolveConsoleRecipe
 	}
 	answers := in.Answers
 	steps := paramsStepsToKit(in.Steps)
 	if in.Device != "" {
-		ent, err := resolveConsoleRecipe(ctx, ex, in.Device)
+		ent, err := resolveEnt(ctx, ex, in.Device)
 		if err != nil {
-			return "", err
+			return nil, nil, err
 		}
 		if len(steps) == 0 {
 			recipeName := in.Recipe
@@ -85,21 +110,22 @@ func runWizard(ctx context.Context, ex *sdk.Executor, s *SpiceSession, in *param
 			}
 			steps, err = kit.SelectRecipe(paramsRecipesToKit(ent.Recipes), steps, recipeName)
 			if err != nil {
-				return "", fmt.Errorf("spice: device %q: %w", in.Device, err)
+				return nil, nil, fmt.Errorf("spice: device %q: %w", in.Device, err)
 			}
 		}
-		merged := kit.MergeAnswers(nil, nil, ent.Answers, nil, nil)
+		// The entity's three answer sources merge lowest-to-highest, with the
+		// step's authored answers winning — the SAME contract the jetkvm
+		// transport applies (answers_env from the host environment, then
+		// answer_secrets, then authored answers).
+		merged := kit.MergeAnswers(ent.AnswersEnv, ent.AnswerSecrets, ent.Answers, os.Getenv, func(key string) string {
+			return credentialLookup(ctx, brokerID, key)
+		})
 		for name, v := range in.Answers {
 			merged[name] = v
 		}
 		answers = merged
 	}
-	w := &kit.ConsoleWizard{
-		Steps:     steps,
-		Answers:   answers,
-		Transport: spiceTransport{s: s},
-	}
-	return w.Run(ctx)
+	return steps, answers, nil
 }
 
 // pressCombo presses a modifier chord ("ctrl+c", "ctrl+alt+Delete"). It resolves
@@ -134,25 +160,6 @@ func pressCombo(s *SpiceSession, combo string) error {
 
 // --- console-recipe entity resolution ---------------------------------------
 
-// consoleRecipeEntity is the transport-NEUTRAL recipe payload the shared console
-// engine reads. A `kind: jetkvm` entity hosts it (the recipe home both
-// transports use); only the recipe/answers half is read here, so one authored
-// recipe drives either transport.
-type consoleRecipeEntity struct {
-	Installer *consoleRecipe `json:"installer,omitempty"`
-}
-
-// consoleRecipe is the recipe bundle the entity carries. Its fields are plain Go
-// data passed to sdk/kit's SelectRecipe / MergeAnswers (the kit holds no wire
-// type; the AUTHORED shape is the entity's own CUE schema, SDD).
-type consoleRecipe struct {
-	Recipes map[string][]params.SpiceConsoleStep `json:"recipes,omitempty"`
-	Steps   []params.SpiceConsoleStep            `json:"steps,omitempty"`
-	Answers map[string]string                    `json:"answers,omitempty"`
-	EnvKeys map[string]string                    `json:"answers_env,omitempty"`
-	SecKeys map[string]string                    `json:"answer_secrets,omitempty"`
-}
-
 // recipeKindWord is the kind the console-recipe entity is authored under. It is
 // the jetkvm kind: the recipe is transport-neutral DATA, so its home is the
 // generic KVM device entity both transports read — not a spice-specific kind.
@@ -163,7 +170,7 @@ const defaultRecipeName = "install"
 
 // resolveConsoleRecipe loads the project out-of-process and returns the recipe
 // half of the named console-recipe entity. An absent entity is a clear error.
-func resolveConsoleRecipe(ctx context.Context, ex *sdk.Executor, name string) (*consoleRecipe, error) {
+func resolveConsoleRecipe(ctx context.Context, ex *sdk.Executor, name string) (*params.SpiceConsoleRecipe, error) {
 	if ex == nil {
 		return nil, fmt.Errorf("spice: resolving console-recipe entity %q needs a host reverse channel (run it inside a deploy/check step, not a bare command)", name)
 	}
@@ -182,7 +189,7 @@ func resolveConsoleRecipe(ctx context.Context, ex *sdk.Executor, name string) (*
 	if !found {
 		return nil, fmt.Errorf("spice: no kind:%s console-recipe entity named %q in %s", recipeKindWord, name, dir)
 	}
-	var ent consoleRecipeEntity
+	var ent params.SpiceConsoleRecipeEntity
 	if err := json.Unmarshal(body, &ent); err != nil {
 		return nil, fmt.Errorf("spice: decoding console-recipe entity %q: %w", name, err)
 	}
