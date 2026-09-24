@@ -28,13 +28,28 @@ import (
 	"github.com/opencharly/spec/spec"
 )
 
+// The transport's readiness + chord-hold timings, NAMED rather than inline
+// literals:
+//   - readinessWait bounds WaitForDisplay/WaitForInputs — the async channel's
+//     readiness poll (the Shells-com library populates them from per-channel
+//     goroutines with no readiness callback, so a bounded poll is the only
+//     synchronization it exposes).
+//   - chordHold is how long a modifier chord is held before release — the SPICE
+//     transport's own hold (plugin-jetkvm's key verb defaults to 40ms and is
+//     configurable via hold_ms; SPICE has no such knob, so its transport fixes one
+//     value large enough that the guest's key handler registers the chord).
+const (
+	readinessWait = 5 * time.Second
+	chordHold     = 50 * time.Millisecond
+)
+
 // spiceTransport adapts a live SpiceSession to kit.ConsoleTransport.
 type spiceTransport struct {
 	s *SpiceSession
 }
 
 func (t spiceTransport) Capture(ctx context.Context) ([]byte, error) {
-	if err := t.s.WaitForDisplay(5 * time.Second); err != nil {
+	if err := t.s.WaitForDisplay(readinessWait); err != nil {
 		return nil, err
 	}
 	img := t.s.Display()
@@ -127,13 +142,14 @@ func buildWizardPlan(ctx context.Context, ex *sdk.Executor, brokerID uint32, in 
 				return nil, nil, fmt.Errorf("spice: device %q: %w", in.Device, err)
 			}
 		}
-		// The entity's three answer sources merge lowest-to-highest, with the
-		// step's authored answers winning — the SAME contract the jetkvm
-		// transport applies (answers_env from the host environment, then
-		// answer_secrets, then authored answers).
-		merged := kit.MergeAnswers(ent.AnswersEnv, ent.AnswerSecrets, ent.Answers, os.Getenv, func(key string) string {
-			return credentialLookup(ctx, brokerID, key)
-		})
+		// The entity's answer sources merge lowest-to-highest, with the step's
+		// authored answers winning: answers_env (the HOST environment) then the
+		// entity's authored answers. The entity's answer_secrets are NOT resolved
+		// here — resolving a credential-store key needs a credential wire type,
+		// and shipping a hand-written one in this plugin would duplicate the
+		// verb:credential contract outside its known SDD exceptions (B13(d)). The
+		// env path is the supported secret channel for a wizard over SPICE.
+		merged := kit.MergeAnswers(ent.AnswersEnv, nil, ent.Answers, os.Getenv, nil)
 		for name, v := range in.Answers {
 			merged[name] = v
 		}
@@ -146,7 +162,7 @@ func buildWizardPlan(ctx context.Context, ex *sdk.Executor, brokerID uint32, in 
 // each `+`-separated token to a scancode and holds all keys down, then releases
 // them in reverse — the same chord semantics the jetkvm transport uses.
 func pressCombo(s *SpiceSession, combo string) error {
-	if err := s.WaitForInputs(5 * time.Second); err != nil {
+	if err := s.WaitForInputs(readinessWait); err != nil {
 		return err
 	}
 	codes, err := comboScancodes(combo)
@@ -157,7 +173,7 @@ func pressCombo(s *SpiceSession, combo string) error {
 	for _, c := range codes {
 		in.OnKeyDown(encodeScancode(c))
 	}
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(chordHold)
 	for i := len(codes) - 1; i >= 0; i-- {
 		in.OnKeyUp(encodeScancode(codes[i]))
 	}

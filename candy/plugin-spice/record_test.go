@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"image/jpeg"
 	"testing"
+	"time"
 
 	"github.com/opencharly/plugin-spice/candy/plugin-spice/params"
 )
@@ -119,4 +120,42 @@ func splitMJpeg(data []byte) [][]byte {
 		i++
 	}
 	return frames
+}
+
+// errWriter fails after allow successful writes, so a test can force the
+// writeFrames writer error without a real broken file.
+type errWriter struct {
+	allow int
+	n     int
+}
+
+func (w *errWriter) Write(p []byte) (int, error) {
+	if w.n >= w.allow {
+		return 0, errWriteStop
+	}
+	w.n++
+	return len(p), nil
+}
+
+var errWriteStop = &writeStopError{}
+
+type writeStopError struct{}
+
+func (*writeStopError) Error() string { return "write stopped" }
+
+// writeFrames must SURFACE a writer error, not swallow it: the output file
+// failing mid-recording is a real failure, not a skipped frame. Removing the
+// `if _, werr := w.Write(b); werr != nil { return count, werr }` arm (reverting
+// to the old unchecked `w.Write(b)`) makes this test FAIL.
+func TestWriteFramesPropagatesWriterError(t *testing.T) {
+	s := &fakeSpiceSession{img: solidRGBA(8, 8, color.RGBA{10, 20, 30, 255})}
+	// done is NEVER closed: the write error must terminate the loop, not the
+	// done signal. If writeFrames swallows the error it would loop forever (or
+	// until done), so the error return is the only way this returns.
+	done := make(chan struct{})
+	w := &errWriter{allow: 0}
+	count, err := writeFrames(s, time.Millisecond, w, done)
+	if err == nil {
+		t.Fatalf("writeFrames swallowed a writer error (count=%d); it must return the error", count)
+	}
 }

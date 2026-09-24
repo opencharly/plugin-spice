@@ -98,7 +98,6 @@
 	steps?: [...#SpiceConsoleStep] @go(Steps)
 	answers?: {[string]: string} @go(Answers)
 	answers_env?: {[string]: string} @go(AnswersEnv)
-	answer_secrets?: {[string]: string} @go(AnswerSecrets)
 }
 
 // #SpiceConsoleRecipeEntity — the entity body half spice reads: the `installer`

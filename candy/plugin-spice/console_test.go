@@ -23,9 +23,8 @@ func TestBuildWizardPlan_EntityRecipeAndAnswerMerge(t *testing.T) {
 			"install":    {{WaitFor: "FromInstall", Action: "key", KeyName: "Return"}},
 			"first_boot": {{WaitFor: "FromFirstBoot"}},
 		},
-		AnswersEnv:    map[string]string{"username": "ENV_KEY", "password": "ENV_PW"},
-		AnswerSecrets: map[string]string{"password": "SECRET_PW"},
-		Answers:       map[string]string{"hostname": "authored-host"},
+		AnswersEnv: map[string]string{"username": "ENV_KEY", "password": "ENV_PW"},
+		Answers:    map[string]string{"hostname": "authored-host"},
 	}
 	stub := func(context.Context, *sdk.Executor, string) (*params.SpiceConsoleRecipe, error) {
 		return ent, nil
@@ -197,17 +196,5 @@ func TestSpiceTransportCapture_NoFrame(t *testing.T) {
 	tr := spiceTransport{s: s}
 	if _, err := tr.Capture(context.Background()); err == nil {
 		t.Fatal("Capture with no display frame must error")
-	}
-}
-
-// TestCredentialLookup_NoBroker pins the empty-broker path of the credential leg
-// (the branch that runs when there is no reverse channel): it resolves to "" and
-// never errors, so an absent store is not a hard failure.
-func TestCredentialLookup_NoBroker(t *testing.T) {
-	if got := credentialLookup(context.Background(), 0, "ANY_KEY"); got != "" {
-		t.Fatalf("no-broker lookup must be empty, got %q", got)
-	}
-	if got := credentialLookup(context.Background(), 1, ""); got != "" {
-		t.Fatalf("empty-key lookup must be empty, got %q", got)
 	}
 }

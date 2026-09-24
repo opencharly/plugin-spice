@@ -134,8 +134,6 @@ type SpiceConsoleRecipe struct {
 	Answers map[string]string `yaml:"answers,omitempty" json:"answers,omitempty"`
 
 	AnswersEnv map[string]string `yaml:"answers_env,omitempty" json:"answers_env,omitempty"`
-
-	AnswerSecrets map[string]string `yaml:"answer_secrets,omitempty" json:"answer_secrets,omitempty"`
 }
 
 // #SpiceConsoleRecipeEntity — the entity body half spice reads: the `installer`
