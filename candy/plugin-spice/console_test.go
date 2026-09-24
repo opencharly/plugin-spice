@@ -15,8 +15,9 @@ import (
 
 // TestBuildWizardPlan_EntityRecipeAndAnswerMerge pins the entity path WITHOUT a
 // reverse channel: a referenced entity supplies the named recipe and the
-// three-source answers (env < secret < authored), with the step's authored
-// answers winning. It calls the REAL buildWizardPlan.
+// TWO-source answers (env < authored), with the step's authored answers winning.
+// (The credential-store secret source was removed with the hand-written wire type
+// it needed; answers_env — the host environment — is the secret channel.) It calls the REAL buildWizardPlan.
 func TestBuildWizardPlan_EntityRecipeAndAnswerMerge(t *testing.T) {
 	ent := &params.SpiceConsoleRecipe{
 		Recipes: map[string][]params.SpiceConsoleStep{
@@ -33,7 +34,7 @@ func TestBuildWizardPlan_EntityRecipeAndAnswerMerge(t *testing.T) {
 	t.Setenv("ENV_PW", "envpass")
 
 	in := &params.SpiceInput{Device: "omarchy-kvm", Recipe: "first_boot", Answers: map[string]string{"hostname": "step-wins"}}
-	steps, answers, err := buildWizardPlan(context.Background(), nil, 0, in, stub)
+	steps, answers, err := buildWizardPlan(context.Background(), nil, in, stub)
 	if err != nil {
 		t.Fatalf("buildWizardPlan: %v", err)
 	}
@@ -43,11 +44,9 @@ func TestBuildWizardPlan_EntityRecipeAndAnswerMerge(t *testing.T) {
 	if answers["username"] != "envuser" {
 		t.Fatalf("answers_env not merged: %v", answers)
 	}
-	// With brokerID 0 there is no credential store, so the secret key resolves
-	// to "" and does NOT clobber the env-sourced value. (answer_secrets names a
-	// store KEY; the store lookup is the production path, exercised live.)
-	if _, present := answers["password"]; present && answers["password"] == "SECRET_PW" {
-		t.Fatalf("answer_secrets must be a credential-store KEY, never a literal value: %v", answers)
+	// The env-sourced password resolves from the host environment (ENV_PW).
+	if answers["password"] != "envpass" {
+		t.Fatalf("answers_env password not merged: %v", answers)
 	}
 	if answers["hostname"] != "step-wins" {
 		t.Fatalf("authored step answer must win: %v", answers)
@@ -60,7 +59,7 @@ func TestBuildWizardPlan_EntityStepsShortcut(t *testing.T) {
 	ent := &params.SpiceConsoleRecipe{Steps: []params.SpiceConsoleStep{{WaitFor: "shortcut"}}}
 	stub := func(context.Context, *sdk.Executor, string) (*params.SpiceConsoleRecipe, error) { return ent, nil }
 	in := &params.SpiceInput{Device: "single-recipe-device"}
-	steps, _, err := buildWizardPlan(context.Background(), nil, 0, in, stub)
+	steps, _, err := buildWizardPlan(context.Background(), nil, in, stub)
 	if err != nil {
 		t.Fatalf("buildWizardPlan: %v", err)
 	}
@@ -71,7 +70,7 @@ func TestBuildWizardPlan_EntityStepsShortcut(t *testing.T) {
 
 // TestBuildWizardPlan_RequiresStepsOrDevice pins the guard.
 func TestBuildWizardPlan_RequiresStepsOrDevice(t *testing.T) {
-	if _, _, err := buildWizardPlan(context.Background(), nil, 0, &params.SpiceInput{}, nil); err == nil {
+	if _, _, err := buildWizardPlan(context.Background(), nil, &params.SpiceInput{}, nil); err == nil {
 		t.Fatal("empty wizard input must error")
 	}
 }
@@ -82,7 +81,7 @@ func TestBuildWizardPlan_InlineStepsNoEntity(t *testing.T) {
 		Steps:   []params.SpiceConsoleStep{{WaitFor: "inline-anchor"}},
 		Answers: map[string]string{"k": "v"},
 	}
-	steps, answers, err := buildWizardPlan(context.Background(), nil, 0, in, nil)
+	steps, answers, err := buildWizardPlan(context.Background(), nil, in, nil)
 	if err != nil {
 		t.Fatalf("buildWizardPlan: %v", err)
 	}
@@ -126,7 +125,7 @@ func TestWizardEngineWiring(t *testing.T) {
 		},
 		Answers: map[string]string{"user": "someone"},
 	}
-	steps, answers, err := buildWizardPlan(context.Background(), nil, 0, in, nil)
+	steps, answers, err := buildWizardPlan(context.Background(), nil, in, nil)
 	if err != nil {
 		t.Fatalf("buildWizardPlan: %v", err)
 	}
@@ -137,7 +136,7 @@ func TestWizardEngineWiring(t *testing.T) {
 	// as runWizard does (production PollInterval/timeout defaults). Only OCR is
 	// substituted, because a fabricated screen cannot yield real tesseract text.
 	fakeOCR := func([]byte) (string, error) { return "always-here", nil }
-	out, err := runWizardWith(context.Background(), nil, 0, ft, fakeOCR, in)
+	out, err := runWizardWith(context.Background(), nil, ft, fakeOCR, in)
 	if err != nil {
 		t.Fatalf("wizard run: %v", err)
 	}

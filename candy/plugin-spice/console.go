@@ -83,8 +83,8 @@ func (t spiceTransport) Type(ctx context.Context, text string) error {
 // runWizard drives a console recipe on the VM's SPICE session through the shared
 // engine. It resolves a referenced console-recipe entity (the transport-neutral
 // recipe home) when `device:`/`recipe:` are authored, then runs the recipe.
-func runWizard(ctx context.Context, ex *sdk.Executor, brokerID uint32, s *SpiceSession, in *params.SpiceInput) (string, error) {
-	return runWizardWith(ctx, ex, brokerID, spiceTransport{s: s}, nil, in)
+func runWizard(ctx context.Context, ex *sdk.Executor, s *SpiceSession, in *params.SpiceInput) (string, error) {
+	return runWizardWith(ctx, ex, spiceTransport{s: s}, nil, in)
 }
 
 // runWizardWith is runWizard over an injected transport and OCR. Production
@@ -94,8 +94,8 @@ func runWizard(ctx context.Context, ex *sdk.Executor, brokerID uint32, s *SpiceS
 // exercised: the plan build, the three-source merge, and the engine drive with
 // the PRODUCTION PollInterval/timeout defaults — only the two boundaries a
 // synthetic screen forces (screen bytes + their OCR) are substituted.
-func runWizardWith(ctx context.Context, ex *sdk.Executor, brokerID uint32, tr kit.ConsoleTransport, ocr func([]byte) (string, error), in *params.SpiceInput) (string, error) {
-	steps, answers, err := buildWizardPlan(ctx, ex, brokerID, in, nil)
+func runWizardWith(ctx context.Context, ex *sdk.Executor, tr kit.ConsoleTransport, ocr func([]byte) (string, error), in *params.SpiceInput) (string, error) {
+	steps, answers, err := buildWizardPlan(ctx, ex, in, nil)
 	if err != nil {
 		return "", err
 	}
@@ -116,7 +116,7 @@ func runWizardWith(ctx context.Context, ex *sdk.Executor, brokerID uint32, tr ki
 //
 // resolveEnt is injected: nil means "resolve a referenced entity over the
 // reverse channel"; a test supplies a stub so no channel is needed.
-func buildWizardPlan(ctx context.Context, ex *sdk.Executor, brokerID uint32, in *params.SpiceInput, resolveEnt func(context.Context, *sdk.Executor, string) (*params.SpiceConsoleRecipe, error)) ([]kit.ConsoleStep, map[string]string, error) {
+func buildWizardPlan(ctx context.Context, ex *sdk.Executor, in *params.SpiceInput, resolveEnt func(context.Context, *sdk.Executor, string) (*params.SpiceConsoleRecipe, error)) ([]kit.ConsoleStep, map[string]string, error) {
 	if len(in.Steps) == 0 && in.Device == "" {
 		return nil, nil, fmt.Errorf("spice: wizard requires a steps recipe (author `steps:` inline, or reference a console-recipe entity with `device:`/`recipe:`)")
 	}

@@ -46,7 +46,7 @@ func TestLiveSpiceWizard(t *testing.T) {
 		{WaitFor: first, Action: "key", KeyName: "Return", TimeoutSec: 120},
 		{WaitFor: "Select keyboard layout", Action: "key", KeyName: "Return", TimeoutSec: 120},
 	}}
-	out, err := runWizardWith(context.Background(), nil, 0, tr, nil, in)
+	out, err := runWizardWith(context.Background(), nil, tr, nil, in)
 	if err != nil {
 		t.Fatalf("wizard over real SPICE: %v", err)
 	}
