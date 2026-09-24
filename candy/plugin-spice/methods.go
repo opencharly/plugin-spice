@@ -1,6 +1,7 @@
 package spice
 
 import (
+	"context"
 	"fmt"
 	"image/png"
 	"os"
@@ -43,7 +44,7 @@ var requiredModifiers = map[string][]string{
 // required-modifier check off op.PluginInput). A returned error is the verb FAILING
 // (the in-tree CLI Run() returning an error → exit 1); provider.go maps it through the
 // exit_status / stderr matchers.
-func dispatch(s *SpiceSession, op *spec.Op, in *params.SpiceInput) (string, error) {
+func dispatch(ctx context.Context, ex *sdk.Executor, brokerID uint32, s *SpiceSession, op *spec.Op, in *params.SpiceInput) (string, error) {
 	method := in.Method
 	if err := sdk.RequireModifiers(method, op, requiredModifiers); err != nil {
 		return "", err
@@ -65,6 +66,8 @@ func dispatch(s *SpiceSession, op *spec.Op, in *params.SpiceInput) (string, erro
 		return runKey(s, in.KeyName)
 	case "record":
 		return runRecord(s, in)
+	case "wizard":
+		return runWizard(ctx, ex, brokerID, s, in)
 	}
 	return "", fmt.Errorf("unknown spice method %q", method)
 }
@@ -293,4 +296,12 @@ var spiceKeyNameToScancode = map[string]uint8{
 	"home": 71, "end": 79, "pgup": 73, "pgdn": 81,
 	"insert": 82, "delete": 83,
 	"shift": 42, "ctrl": 29, "alt": 56, "meta": 125,
+	// Letters (Set-1 make codes) — a modifier chord like "ctrl+c" (the Omarchy
+	// deferred-provisioning combo) needs them, and the key verb should accept
+	// "a".."z" just as the jetkvm transport does.
+	"a": 30, "b": 48, "c": 46, "d": 32, "e": 18, "f": 33, "g": 34, "h": 35,
+	"i": 23, "j": 36, "k": 37, "l": 38, "m": 50, "n": 49, "o": 24, "p": 25,
+	"q": 16, "r": 19, "s": 31, "t": 20, "u": 22, "v": 47, "w": 17, "x": 45,
+	"y": 21, "z": 44,
+	"0": 11, "1": 2, "2": 3, "3": 4, "4": 5, "5": 6, "6": 7, "7": 8, "8": 9, "9": 10,
 }

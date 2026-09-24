@@ -24,7 +24,7 @@
 #SpiceInput: {
 	// method — the spice method to dispatch (the former core #SpiceMethod enum;
 	// also the scalar-sugar primary: `spice: <method>`).
-	method: "status" | "screenshot" | "cursor" | "click" | "mouse" | "type" | "key" | "record" | "session"
+	method: "status" | "screenshot" | "cursor" | "click" | "mouse" | "type" | "key" | "record" | "session" | "wizard"
 	// action — start|stop for a record session (record); start|stop|status for a
 	// session (session). record start begins capturing the display framebuffer at
 	// fps into an MJPEG stream; record stop flushes it to artifact.
@@ -64,4 +64,47 @@
 	log_dir?:  string @go(LogDir)
 	venue?:      string @go(Venue)
 	phase?:      string @go(Phase)
+
+	// --- console wizard: drive a text-console wizard on the VM's SPICE console
+	// via the SHARED console engine (sdk/kit ConsoleWizard) — the SAME engine and
+	// the SAME recipe the JetKVM verb uses (R3). steps: inline, or device:+recipe:
+	// referencing a transport-neutral console-recipe entity.
+	steps?: [...#SpiceConsoleStep] @go(Steps)
+	device?: string @go(Device)
+	recipe?: string @go(Recipe)
+	answers?: {[string]: string} @go(Answers)
+}
+
+// #SpiceConsoleStep — ONE step of a console-wizard recipe (the neutral shape,
+// mirrored from kit.ConsoleStep).
+#SpiceConsoleStep: {
+	wait_for: string & !="" @go(WaitFor)
+	action?: "key" | "type" | "key-combo"
+	key?: string @go(KeyName)
+	combo?: string
+	text?: string
+	timeout_sec?: int & >=1 @go(TimeoutSec,type=int)
+	optional?: bool @go(Optional)
+	artifact?: string
+	description?: string @go(Description)
+}
+
+// #SpiceConsoleRecipe — the console-recipe bundle a `spice: wizard` step reads
+// from a transport-neutral console-recipe entity (a `kind: jetkvm` entity, the
+// recipe home BOTH transports share). It is the AUTHORED shape spice decodes;
+// the shared engine (sdk/kit) holds no wire type, so the shape lives here.
+#SpiceConsoleRecipe: {
+	recipes?: {[string]: [...#SpiceConsoleStep]} @go(Recipes)
+	steps?: [...#SpiceConsoleStep] @go(Steps)
+	answers?: {[string]: string} @go(Answers)
+	answers_env?: {[string]: string} @go(AnswersEnv)
+	answer_secrets?: {[string]: string} @go(AnswerSecrets)
+}
+
+// #SpiceConsoleRecipeEntity — the entity body half spice reads: the `installer`
+// recipe bundle. The rest of the entity (host, device fields) belongs to the
+// verb that OWNS the device (jetkvm); spice reads only the transport-neutral
+// recipe.
+#SpiceConsoleRecipeEntity: {
+	installer?: #SpiceConsoleRecipe @go(Installer,optional=nillable)
 }
