@@ -1,6 +1,7 @@
 package spice
 
 import (
+	"context"
 	"fmt"
 	"image/png"
 	"os"
@@ -43,7 +44,7 @@ var requiredModifiers = map[string][]string{
 // required-modifier check off op.PluginInput). A returned error is the verb FAILING
 // (the in-tree CLI Run() returning an error → exit 1); provider.go maps it through the
 // exit_status / stderr matchers.
-func dispatch(s *SpiceSession, op *spec.Op, in *params.SpiceInput) (string, error) {
+func dispatch(ctx context.Context, ex *sdk.Executor, s *SpiceSession, op *spec.Op, in *params.SpiceInput) (string, error) {
 	method := in.Method
 	if err := sdk.RequireModifiers(method, op, requiredModifiers); err != nil {
 		return "", err
@@ -65,6 +66,8 @@ func dispatch(s *SpiceSession, op *spec.Op, in *params.SpiceInput) (string, erro
 		return runKey(s, in.KeyName)
 	case "record":
 		return runRecord(s, in)
+	case "wizard":
+		return runWizard(ctx, ex, s, in)
 	}
 	return "", fmt.Errorf("unknown spice method %q", method)
 }

@@ -108,7 +108,8 @@ func (provider) Invoke(ctx context.Context, req *pb.InvokeRequest) (*pb.InvokeRe
 		return sdk.ResultJSON("fail", fmt.Sprintf("spice: %s: %v", method, dialErr))
 	}
 
-	out, runErr := dispatch(s, &op, &in)
+	ex, _ := sdk.ExecutorForInvoke(ctx, req.GetExecutorBrokerId())
+	out, runErr := dispatch(ctx, ex, s, &op, &in)
 
 	// ONE sdk.LandArtifact call per produced artifact — the single entry every capture
 	// plugin uses (R3). spice is a HOST-side producer (screenshot/cursor write the PNG

@@ -222,4 +222,3 @@ func TestWaitForEvidenceRow(t *testing.T) {
 		t.Fatal("cancelled-ctx path: want error")
 	}
 }
-
