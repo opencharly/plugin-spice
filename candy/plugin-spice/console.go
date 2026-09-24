@@ -184,6 +184,13 @@ func pressCombo(s *SpiceSession, combo string) error {
 // ordered scancode list. It is PURE, so the chord contract (split on '+', trim,
 // case-insensitive key names, unknowns rejected) is unit-locked with no session.
 func comboScancodes(combo string) ([]uint8, error) {
+	// Handle an empty/whitespace-only chord BEFORE splitting: strings.Split("", "+")
+	// yields [""], so without this check the loop would report the empty segment as
+	// "unknown key" (an unhelpful message) and the empty-combo error would be
+	// unreachable.
+	if strings.TrimSpace(combo) == "" {
+		return nil, fmt.Errorf("empty key combo")
+	}
 	parts := strings.Split(combo, "+")
 	codes := make([]uint8, 0, len(parts))
 	for _, p := range parts {
@@ -192,9 +199,6 @@ func comboScancodes(combo string) ([]uint8, error) {
 			return nil, fmt.Errorf("unknown key in combo: %s", p)
 		}
 		codes = append(codes, code)
-	}
-	if len(codes) == 0 {
-		return nil, fmt.Errorf("empty key combo")
 	}
 	return codes, nil
 }

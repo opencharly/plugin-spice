@@ -160,8 +160,16 @@ func TestComboScancodes(t *testing.T) {
 	if _, err := comboScancodes("ctrl+nope"); err == nil {
 		t.Fatal("an unknown key must be rejected")
 	}
-	if _, err := comboScancodes(""); err == nil {
-		t.Fatal("an empty combo must be rejected")
+	// The empty/whitespace-only cases must reach the DEDICATED empty-combo error
+	// (not fall through to "unknown key"), so the guard is reachable + tested.
+	for _, c := range []string{"", "   "} {
+		_, err := comboScancodes(c)
+		if err == nil {
+			t.Fatalf("comboScancodes(%q) must be rejected", c)
+		}
+		if !strings.Contains(err.Error(), "empty key combo") {
+			t.Fatalf("comboScancodes(%q) must report the empty-combo error, got %v", c, err)
+		}
 	}
 }
 
