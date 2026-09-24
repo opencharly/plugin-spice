@@ -205,3 +205,43 @@ func TestSpiceTransportCapture_NoFrame(t *testing.T) {
 		t.Fatal("Capture with no display frame must error")
 	}
 }
+
+// TestChordEvents pins the EXACT wire sequence a modifier chord sends, including
+// the reverse-order release — the path the added a-z keys exist for (`ctrl+c`,
+// the Omarchy deferred-provisioning combo). pressCombo's own body is the loop
+// over these events; this test locks the events themselves.
+func TestChordEvents(t *testing.T) {
+	downs, ups, err := chordEvents("ctrl+c")
+	if err != nil {
+		t.Fatalf("chordEvents(ctrl+c): %v", err)
+	}
+	if len(downs) != 2 || len(ups) != 2 {
+		t.Fatalf("ctrl+c must produce 2 downs + 2 ups, got %d/%d", len(downs), len(ups))
+	}
+	// DOWN order: ctrl then c. UP order: c then ctrl (reverse).
+	if string(downs[0]) == string(downs[1]) {
+		t.Fatal("ctrl+c must press two DISTINCT scancodes")
+	}
+	if string(ups[0]) != string(downs[1]) || string(ups[1]) != string(downs[0]) {
+		t.Fatalf("release must be the reverse of press: downs=%v ups=%v", downs, ups)
+	}
+	if _, _, err := chordEvents("nope+x"); err == nil {
+		t.Fatal("an unknown key in a chord must error")
+	}
+}
+
+// TestResolveConsoleRecipe_NilExecutor pins the resolver's guard: with no host
+// reverse channel (a bare command, not a deploy/check step) it must fail with a
+// clear message rather than nil-panic. The reverse-channel body itself
+// (recipeProjectDir -> loaderkit) needs a host plugin dispatch — a boundary this
+// standalone test cannot stand up — so it is covered by the live consumer bed
+// (check-omarchy-vm-console), not by a stub.
+func TestResolveConsoleRecipe_NilExecutor(t *testing.T) {
+	_, err := resolveConsoleRecipe(context.Background(), nil, "omarchy-kvm")
+	if err == nil {
+		t.Fatal("resolveConsoleRecipe with no executor must error, not panic")
+	}
+	if !strings.Contains(err.Error(), "reverse channel") {
+		t.Fatalf("the no-executor error must name the reverse channel, got %v", err)
+	}
+}

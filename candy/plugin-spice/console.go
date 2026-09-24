@@ -144,11 +144,10 @@ func buildWizardPlan(ctx context.Context, ex *sdk.Executor, in *params.SpiceInpu
 		}
 		// The entity's answer sources merge lowest-to-highest, with the step's
 		// authored answers winning: answers_env (the HOST environment) then the
-		// entity's authored answers. The entity's answer_secrets are NOT resolved
-		// here — resolving a credential-store key needs a credential wire type,
-		// and shipping a hand-written one in this plugin would duplicate the
-		// verb:credential contract outside its known SDD exceptions (B13(d)). The
-		// env path is the supported secret channel for a wizard over SPICE.
+		// entity's authored answers. There is no credential-store source: the
+		// env path is the secret channel for a wizard over SPICE (an earlier
+		// draft's answer_secrets feature was removed with the hand-written wire
+		// type it needed).
 		merged := kit.MergeAnswers(ent.AnswersEnv, nil, ent.Answers, os.Getenv, nil)
 		for name, v := range in.Answers {
 			merged[name] = v
@@ -165,19 +164,39 @@ func pressCombo(s *SpiceSession, combo string) error {
 	if err := s.WaitForInputs(readinessWait); err != nil {
 		return err
 	}
-	codes, err := comboScancodes(combo)
+	downs, ups, err := chordEvents(combo)
 	if err != nil {
 		return err
 	}
 	in := s.Inputs()
-	for _, c := range codes {
-		in.OnKeyDown(encodeScancode(c))
+	for _, b := range downs {
+		in.OnKeyDown(b)
 	}
 	time.Sleep(chordHold)
-	for i := len(codes) - 1; i >= 0; i-- {
-		in.OnKeyUp(encodeScancode(codes[i]))
+	for _, b := range ups {
+		in.OnKeyUp(b)
 	}
 	return nil
+}
+
+// chordEvents resolves a chord to its encoded DOWN sequence and the matching UP
+// sequence (released in reverse). It is PURE, so the exact wire bytes a `ctrl+c`
+// (the Omarchy combo) sends are unit-locked with no session: DOWN = each
+// scancode in order, UP = the same scancodes reversed.
+func chordEvents(combo string) (downs, ups [][]byte, err error) {
+	codes, err := comboScancodes(combo)
+	if err != nil {
+		return nil, nil, err
+	}
+	downs = make([][]byte, 0, len(codes))
+	for _, c := range codes {
+		downs = append(downs, encodeScancode(c))
+	}
+	ups = make([][]byte, 0, len(codes))
+	for i := len(codes) - 1; i >= 0; i-- {
+		ups = append(ups, encodeScancode(codes[i]))
+	}
+	return downs, ups, nil
 }
 
 // comboScancodes resolves a modifier chord ("ctrl+c", "ctrl+alt+Delete") to its
