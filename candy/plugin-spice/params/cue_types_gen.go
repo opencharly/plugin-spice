@@ -28,44 +28,44 @@ package params
 type SpiceInput struct {
 	// method — the spice method to dispatch (the former core #SpiceMethod enum;
 	// also the scalar-sugar primary: `spice: <method>`).
-	Method string `json:"method" yaml:"method,omitempty"`
+	Method string `yaml:"method,omitempty" json:"method"`
 
 	// action — start|stop for a record session (record); start|stop|status for a
 	// session (session). record start begins capturing the display framebuffer at
 	// fps into an MJPEG stream; record stop flushes it to artifact.
-	Action string `json:"action,omitempty" yaml:"action,omitempty,omitempty"`
+	Action string `yaml:"action,omitempty" json:"action,omitempty"`
 
 	// record_name — the recording session name (default "default"); multiple
 	// concurrent sessions supported.
-	RecordName string `json:"record_name,omitempty" yaml:"record_name,omitempty,omitempty"`
+	RecordName string `yaml:"record_name,omitempty" json:"record_name,omitempty"`
 
 	// fps — the display-frame capture rate for record (default 5).
-	Fps int `json:"fps,omitempty" yaml:"fps,omitempty,omitempty"`
+	Fps int `yaml:"fps,omitempty" json:"fps,omitempty"`
 
 	// x / y — guest-absolute coordinates (click/mouse).
-	X int `json:"x,omitempty" yaml:"x,omitempty,omitempty"`
+	X int `yaml:"x,omitempty" json:"x,omitempty"`
 
-	Y int `json:"y,omitempty" yaml:"y,omitempty,omitempty"`
+	Y int `yaml:"y,omitempty" json:"y,omitempty"`
 
 	// button — the mouse button for click (left/right/middle; default left).
-	Button string `json:"button,omitempty" yaml:"button,omitempty,omitempty"`
+	Button string `yaml:"button,omitempty" json:"button,omitempty"`
 
 	// text — the text `type` types (PC-AT scancode sequence).
-	Text string `json:"text,omitempty" yaml:"text,omitempty,omitempty"`
+	Text string `yaml:"text,omitempty" json:"text,omitempty"`
 
 	// key — the named key `key` presses.
-	KeyName string `json:"key,omitempty" yaml:"key,omitempty,omitempty"`
+	KeyName string `yaml:"key,omitempty" json:"key,omitempty"`
 
 	// artifact — the host path `screenshot`/`cursor` writes the PNG to.
-	Artifact string `json:"artifact,omitempty" yaml:"artifact,omitempty,omitempty"`
+	Artifact string `yaml:"artifact,omitempty" json:"artifact,omitempty"`
 
 	// artifact_min_bytes / artifact_min_dimensions / artifact_not_uniform — the
 	// post-run artifact-reality assertions (sdk.RunArtifactValidators).
-	ArtifactMinBytes int `json:"artifact_min_bytes,omitempty" yaml:"artifact_min_bytes,omitempty,omitempty"`
+	ArtifactMinBytes int `yaml:"artifact_min_bytes,omitempty" json:"artifact_min_bytes,omitempty"`
 
-	ArtifactMinDimensions string `json:"artifact_min_dimensions,omitempty" yaml:"artifact_min_dimensions,omitempty,omitempty"`
+	ArtifactMinDimensions string `yaml:"artifact_min_dimensions,omitempty" json:"artifact_min_dimensions,omitempty"`
 
-	ArtifactNotUniform bool `json:"artifact_not_uniform,omitempty" yaml:"artifact_not_uniform,omitempty,omitempty"`
+	ArtifactNotUniform bool `yaml:"artifact_not_uniform,omitempty" json:"artifact_not_uniform,omitempty"`
 
 	// session — the DETACHED host-side recorder (Cutover A, A-task-2b): `spice: session` starts
 	// the plugin's OWN binary in recorder mode through the runner's generic
@@ -73,17 +73,73 @@ type SpiceInput struct {
 	// holds the SPICE wire itself — the provider stays wire-free — polls the display
 	// at fps into state_dir/frames.mjpeg, and on SIGTERM finalizes with the FINAL
 	// marker + the evidence row.json. venue/phase are stamped into the evidence row.
-	SessionId string `json:"session_id,omitempty" yaml:"session_id,omitempty,omitempty"`
+	SessionId string `yaml:"session_id,omitempty" json:"session_id,omitempty"`
 
-	StateDir string `json:"state_dir,omitempty" yaml:"state_dir,omitempty,omitempty"`
+	StateDir string `yaml:"state_dir,omitempty" json:"state_dir,omitempty"`
 
 	// artifact_dir — the runner-injected generic evidence-artifact dir (verb-agnostic;
 	// the provider appends its own filename/extension).
-	ArtifactDir string `json:"artifact_dir,omitempty" yaml:"artifact_dir,omitempty,omitempty"`
+	ArtifactDir string `yaml:"artifact_dir,omitempty" json:"artifact_dir,omitempty"`
 
-	LogDir string `json:"log_dir,omitempty" yaml:"log_dir,omitempty,omitempty"`
+	LogDir string `yaml:"log_dir,omitempty" json:"log_dir,omitempty"`
 
-	Venue string `json:"venue,omitempty" yaml:"venue,omitempty,omitempty"`
+	Venue string `yaml:"venue,omitempty" json:"venue,omitempty"`
 
-	Phase string `json:"phase,omitempty" yaml:"phase,omitempty,omitempty"`
+	Phase string `yaml:"phase,omitempty" json:"phase,omitempty"`
+
+	// --- console wizard: drive a text-console wizard on the VM's SPICE console
+	// via the SHARED console engine (sdk/kit ConsoleWizard) — the SAME engine and
+	// the SAME recipe the JetKVM verb uses (R3). steps: inline, or device:+recipe:
+	// referencing a transport-neutral console-recipe entity.
+	Steps []SpiceConsoleStep `yaml:"steps,omitempty" json:"steps,omitempty"`
+
+	Device string `yaml:"device,omitempty" json:"device,omitempty"`
+
+	Recipe string `yaml:"recipe,omitempty" json:"recipe,omitempty"`
+
+	Answers map[string]string `yaml:"answers,omitempty" json:"answers,omitempty"`
+}
+
+// #SpiceConsoleStep — ONE step of a console-wizard recipe (the neutral shape,
+// mirrored from kit.ConsoleStep).
+type SpiceConsoleStep struct {
+	WaitFor string `yaml:"wait_for,omitempty" json:"wait_for"`
+
+	Action string `yaml:"action,omitempty" json:"action,omitempty"`
+
+	KeyName string `yaml:"key,omitempty" json:"key,omitempty"`
+
+	Combo string `yaml:"combo,omitempty" json:"combo,omitempty"`
+
+	Text string `yaml:"text,omitempty" json:"text,omitempty"`
+
+	TimeoutSec int `yaml:"timeout_sec,omitempty" json:"timeout_sec,omitempty"`
+
+	Optional bool `yaml:"optional,omitempty" json:"optional,omitempty"`
+
+	Artifact string `yaml:"artifact,omitempty" json:"artifact,omitempty"`
+
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+}
+
+// #SpiceConsoleRecipe — the console-recipe bundle a `spice: wizard` step reads
+// from a transport-neutral console-recipe entity (a `kind: jetkvm` entity, the
+// recipe home BOTH transports share). It is the AUTHORED shape spice decodes;
+// the shared engine (sdk/kit) holds no wire type, so the shape lives here.
+type SpiceConsoleRecipe struct {
+	Recipes map[string][]SpiceConsoleStep `yaml:"recipes,omitempty" json:"recipes,omitempty"`
+
+	Steps []SpiceConsoleStep `yaml:"steps,omitempty" json:"steps,omitempty"`
+
+	Answers map[string]string `yaml:"answers,omitempty" json:"answers,omitempty"`
+
+	AnswersEnv map[string]string `yaml:"answers_env,omitempty" json:"answers_env,omitempty"`
+}
+
+// #SpiceConsoleRecipeEntity — the entity body half spice reads: the `installer`
+// recipe bundle. The rest of the entity (host, device fields) belongs to the
+// verb that OWNS the device (jetkvm); spice reads only the transport-neutral
+// recipe.
+type SpiceConsoleRecipeEntity struct {
+	Installer *SpiceConsoleRecipe `yaml:"installer,omitempty" json:"installer,omitempty"`
 }

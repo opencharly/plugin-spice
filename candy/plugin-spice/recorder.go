@@ -108,9 +108,12 @@ func captureSession(s displaySource, cfg RecorderConfig, done <-chan struct{}) (
 	if err != nil {
 		return 0, fmt.Errorf("recorder: open %s: %w", framesFile, err)
 	}
-	count := writeFrames(s, captureInterval(cfg.Fps), out, done)
-	if err := out.Close(); err != nil {
-		return 0, fmt.Errorf("recorder: close %s: %w", framesFile, err)
+	count, werr := writeFrames(s, captureInterval(cfg.Fps), out, done)
+	if cerr := out.Close(); cerr != nil {
+		return 0, fmt.Errorf("recorder: close %s: %w", framesFile, cerr)
+	}
+	if werr != nil {
+		return 0, fmt.Errorf("recorder: writing %s: %w", framesFile, werr)
 	}
 	if err := finalizeSession(cfg, count); err != nil {
 		return 0, err
@@ -133,15 +136,16 @@ func captureInterval(fps int) time.Duration {
 
 // writeFrames polls the display source at interval, appending each frame as a JPEG
 // onto w until done closes. Video semantics identical to record.go's tick: every
-// poll is one frame of the stream. Returns the frame count.
-func writeFrames(s displaySource, interval time.Duration, w io.Writer, done <-chan struct{}) int {
+// poll is one frame of the stream. Returns the frame count, and a writer error
+// (the output file failing mid-recording is a real failure, not a skipped frame).
+func writeFrames(s displaySource, interval time.Duration, w io.Writer, done <-chan struct{}) (int, error) {
 	tick := time.NewTicker(interval)
 	defer tick.Stop()
 	count := 0
 	for {
 		select {
 		case <-done:
-			return count
+			return count, nil
 		case <-tick.C:
 			img := s.Display()
 			if img == nil {
@@ -151,7 +155,9 @@ func writeFrames(s displaySource, interval time.Duration, w io.Writer, done <-ch
 			if len(b) == 0 {
 				continue
 			}
-			w.Write(b)
+			if _, werr := w.Write(b); werr != nil {
+				return count, werr
+			}
 			count++
 		}
 	}
