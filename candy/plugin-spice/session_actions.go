@@ -57,7 +57,7 @@ func runCommands(ctx context.Context, s *SpiceSession, in *params.SpiceInput, su
 	if err != nil {
 		return "", err
 	}
-	return kit.RunCommands(ctx, spiceTransport{s: s}, cmds, sudoPassword, in.CloseTerminal)
+	return kit.RunCommands(ctx, spiceTransport{s: s}, cmds, sudoPassword, in.CloseTerminal, in.PromptAnchors)
 }
 
 // runCloseTerminal decodes `close-terminal` into the shared action.
@@ -112,7 +112,16 @@ func runFlow(ctx context.Context, s *SpiceSession, in *params.SpiceInput) (strin
 			TimeoutSec:  n.TimeoutSec,
 		}
 	}
-	res, err := kit.RunConsoleFlowResume(ctx, spiceTransport{s: s}, in.FlowStart, nodes, in.SudoPassword, in.FlowMaxSteps, in.FlowMaxLoops, in.FlowResume, in.FlowResumeOrder)
+	res, err := kit.RunConsoleFlow(ctx, spiceTransport{s: s}, kit.ConsoleFlowSpec{
+		Start:            in.FlowStart,
+		Nodes:            nodes,
+		SudoPassword:     in.SudoPassword,
+		MaxSteps:         in.FlowMaxSteps,
+		MaxLoops:         in.FlowMaxLoops,
+		ResumeFromScreen: in.FlowResume,
+		ResumeOrder:      in.FlowResumeOrder,
+		PromptAnchors:    in.PromptAnchors,
+	})
 	if err != nil {
 		return kit.RenderFlowEvidence(res), fmt.Errorf("spice: flow: %w", err)
 	}
