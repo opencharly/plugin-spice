@@ -138,6 +138,11 @@ type SpiceInput struct {
 	FlowMaxSteps int `yaml:"flow_max_steps,omitempty" json:"flow_max_steps,omitempty"`
 
 	FlowMaxLoops int `yaml:"flow_max_loops,omitempty" json:"flow_max_loops,omitempty"`
+
+	// flow_resume — auto-detect the entry node from the CURRENT screen.
+	FlowResume bool `yaml:"flow_resume,omitempty" json:"flow_resume,omitempty"`
+
+	FlowResumeOrder []string `yaml:"flow_resume_order,omitempty" json:"flow_resume_order,omitempty"`
 }
 
 // #SpiceConsoleStep — ONE step of a console-wizard recipe (the neutral shape,
@@ -207,11 +212,16 @@ type SpiceFlowNode struct {
 	TimeoutSec int `yaml:"timeout_sec,omitempty" json:"timeout_sec,omitempty"`
 }
 
-// #SpiceFlowOutcome — ONE named condition a flow node waits for.
+// #SpiceFlowOutcome — ONE named condition a flow node waits for. It matches by
+// OCR substring OR by a reference screenshot (perceptual hash).
 type SpiceFlowOutcome struct {
 	Name string `yaml:"name,omitempty" json:"name"`
 
-	Match string `yaml:"match,omitempty" json:"match"`
+	Match string `yaml:"match,omitempty" json:"match,omitempty"`
+
+	Reference string `yaml:"reference,omitempty" json:"reference,omitempty"`
+
+	MaxDistance int `yaml:"max_distance,omitempty" json:"max_distance,omitempty"`
 
 	Failure bool `yaml:"failure,omitempty" json:"failure,omitempty"`
 }

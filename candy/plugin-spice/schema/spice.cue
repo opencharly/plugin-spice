@@ -101,6 +101,9 @@
 	flow_nodes?: {[string]: #SpiceFlowNode} @go(FlowNodes)
 	flow_max_steps?: int & >=1 @go(FlowMaxSteps,type=int)
 	flow_max_loops?: int & >=1 @go(FlowMaxLoops,type=int)
+	// flow_resume — auto-detect the entry node from the CURRENT screen.
+	flow_resume?: bool @go(FlowResume)
+	flow_resume_order?: [...string] @go(FlowResumeOrder)
 }
 
 // #SpiceSessionCommand — ONE command `run-command` runs in an open terminal
@@ -114,10 +117,13 @@
 	description?: string @go(Description)
 }
 
-// #SpiceFlowOutcome — ONE named condition a flow node waits for.
+// #SpiceFlowOutcome — ONE named condition a flow node waits for. It matches by
+// OCR substring OR by a reference screenshot (perceptual hash).
 #SpiceFlowOutcome: {
 	name: string & !="" @go(Name)
-	match: string & !="" @go(Match)
+	match?: string @go(Match)
+	reference?: string @go(Reference)
+	max_distance?: int & >=0 & <=64 @go(MaxDistance,type=int)
 	failure?: bool @go(Failure)
 }
 
