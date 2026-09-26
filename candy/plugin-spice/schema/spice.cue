@@ -24,7 +24,11 @@
 #SpiceInput: {
 	// method — the spice method to dispatch (the former core #SpiceMethod enum;
 	// also the scalar-sugar primary: `spice: <method>`).
-	method: "status" | "screenshot" | "cursor" | "click" | "mouse" | "type" | "key" | "record" | "session" | "wizard"
+	method: "status" | "screenshot" | "cursor" | "click" | "mouse" | "type" | "key" | "record" | "session" | "wizard" |
+		// console terminal session + flow (the SAME generic actions the jetkvm
+		// verb exposes, over the SHARED sdk/kit console engine — one authored
+		// action drives either transport, R3).
+		"open-terminal" | "run-command" | "close-terminal" | "luks-unlock" | "flow" | "boot-order"
 	// action — start|stop for a record session (record); start|stop|status for a
 	// session (session). record start begins capturing the display framebuffer at
 	// fps into an MJPEG stream; record stop flushes it to artifact.
@@ -73,6 +77,71 @@
 	device?: string @go(Device)
 	recipe?: string @go(Recipe)
 	answers?: {[string]: string} @go(Answers)
+
+	// --- console terminal session + flow (the GENERIC actions) -------------
+	// The SAME generic console actions the `jetkvm:` verb exposes, over the
+	// SHARED sdk/kit action layer (R3): open a terminal, run commands and read
+	// their OCR output (with sudo), close it, enter a disk-encryption passphrase,
+	// set the boot order, and drive a bounded flow. One authored action drives a
+	// VM console over SPICE or a physical machine over a JetKVM.
+	terminal_combo?: string @go(TerminalCombo)
+	prompt_anchors?: [...string] @go(PromptAnchors)
+	commands?: [...#SpiceSessionCommand] @go(Commands)
+	close_terminal?: bool @go(CloseTerminal)
+	sudo_password?: string @go(SudoPassword)
+	sudo_password_secret?: string @go(SudoPasswordSecret)
+	passphrase?: string @go(Passphrase)
+	passphrase_secret?: string @go(PassphraseSecret)
+	outcomes?: [...string] @go(Outcomes)
+	boot_order_action?: "list" | "next" | "set" @go(BootOrderAction)
+	boot_order_entry?: string @go(BootOrderEntry)
+	boot_order_sequence?: string @go(BootOrderSequence)
+	boot_order_command?: string @go(BootOrderCommand)
+	flow_start?: string @go(FlowStart)
+	flow_nodes?: {[string]: #SpiceFlowNode} @go(FlowNodes)
+	flow_max_steps?: int & >=1 @go(FlowMaxSteps,type=int)
+	flow_max_loops?: int & >=1 @go(FlowMaxLoops,type=int)
+	// flow_resume — auto-detect the entry node from the CURRENT screen.
+	flow_resume?: bool @go(FlowResume)
+	flow_resume_order?: [...string] @go(FlowResumeOrder)
+}
+
+// #SpiceSessionCommand — ONE command `run-command` runs in an open terminal
+// (mirrored from kit.ConsoleCommand).
+#SpiceSessionCommand: {
+	command: string & !="" @go(Command)
+	sudo?: bool @go(Sudo)
+	expect?: string @go(Expect)
+	timeout_sec?: int & >=1 @go(TimeoutSec,type=int)
+	artifact?: string
+	description?: string @go(Description)
+}
+
+// #SpiceFlowOutcome — ONE named condition a flow node waits for. It matches by
+// OCR substring OR by a reference screenshot (perceptual hash).
+#SpiceFlowOutcome: {
+	name: string & !="" @go(Name)
+	match?: string @go(Match)
+	reference?: string @go(Reference)
+	max_distance?: int & >=0 & <=64 @go(MaxDistance,type=int)
+	failure?: bool @go(Failure)
+}
+
+// #SpiceFlowNode — ONE state of a console flow.
+#SpiceFlowNode: {
+	description?: string @go(Description)
+	wait?: [...#SpiceFlowOutcome] @go(Wait)
+	key?: string @go(Key)
+	combo?: string @go(Combo)
+	text?: string @go(Text)
+	command?: string @go(Command)
+	sudo?: bool @go(Sudo)
+	expect?: string @go(Expect)
+	close_terminal?: bool @go(CloseTerminal)
+	transitions?: {[string]: string} @go(Transitions)
+	next?: string @go(Next)
+	artifact?: string
+	timeout_sec?: int & >=1 @go(TimeoutSec,type=int)
 }
 
 // #SpiceConsoleStep — ONE step of a console-wizard recipe (the neutral shape,

@@ -98,6 +98,51 @@ type SpiceInput struct {
 	Recipe string `yaml:"recipe,omitempty" json:"recipe,omitempty"`
 
 	Answers map[string]string `yaml:"answers,omitempty" json:"answers,omitempty"`
+
+	// --- console terminal session + flow (the GENERIC actions) -------------
+	// The SAME generic console actions the `jetkvm:` verb exposes, over the
+	// SHARED sdk/kit action layer (R3): open a terminal, run commands and read
+	// their OCR output (with sudo), close it, enter a disk-encryption passphrase,
+	// set the boot order, and drive a bounded flow. One authored action drives a
+	// VM console over SPICE or a physical machine over a JetKVM.
+	TerminalCombo string `yaml:"terminal_combo,omitempty" json:"terminal_combo,omitempty"`
+
+	PromptAnchors []string `yaml:"prompt_anchors,omitempty" json:"prompt_anchors,omitempty"`
+
+	Commands []SpiceSessionCommand `yaml:"commands,omitempty" json:"commands,omitempty"`
+
+	CloseTerminal bool `yaml:"close_terminal,omitempty" json:"close_terminal,omitempty"`
+
+	SudoPassword string `yaml:"sudo_password,omitempty" json:"sudo_password,omitempty"`
+
+	SudoPasswordSecret string `yaml:"sudo_password_secret,omitempty" json:"sudo_password_secret,omitempty"`
+
+	Passphrase string `yaml:"passphrase,omitempty" json:"passphrase,omitempty"`
+
+	PassphraseSecret string `yaml:"passphrase_secret,omitempty" json:"passphrase_secret,omitempty"`
+
+	Outcomes []string `yaml:"outcomes,omitempty" json:"outcomes,omitempty"`
+
+	BootOrderAction string `yaml:"boot_order_action,omitempty" json:"boot_order_action,omitempty"`
+
+	BootOrderEntry string `yaml:"boot_order_entry,omitempty" json:"boot_order_entry,omitempty"`
+
+	BootOrderSequence string `yaml:"boot_order_sequence,omitempty" json:"boot_order_sequence,omitempty"`
+
+	BootOrderCommand string `yaml:"boot_order_command,omitempty" json:"boot_order_command,omitempty"`
+
+	FlowStart string `yaml:"flow_start,omitempty" json:"flow_start,omitempty"`
+
+	FlowNodes map[string]SpiceFlowNode `yaml:"flow_nodes,omitempty" json:"flow_nodes,omitempty"`
+
+	FlowMaxSteps int `yaml:"flow_max_steps,omitempty" json:"flow_max_steps,omitempty"`
+
+	FlowMaxLoops int `yaml:"flow_max_loops,omitempty" json:"flow_max_loops,omitempty"`
+
+	// flow_resume — auto-detect the entry node from the CURRENT screen.
+	FlowResume bool `yaml:"flow_resume,omitempty" json:"flow_resume,omitempty"`
+
+	FlowResumeOrder []string `yaml:"flow_resume_order,omitempty" json:"flow_resume_order,omitempty"`
 }
 
 // #SpiceConsoleStep — ONE step of a console-wizard recipe (the neutral shape,
@@ -120,6 +165,65 @@ type SpiceConsoleStep struct {
 	Artifact string `yaml:"artifact,omitempty" json:"artifact,omitempty"`
 
 	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+}
+
+// #SpiceSessionCommand — ONE command `run-command` runs in an open terminal
+// (mirrored from kit.ConsoleCommand).
+type SpiceSessionCommand struct {
+	Command string `yaml:"command,omitempty" json:"command"`
+
+	Sudo bool `yaml:"sudo,omitempty" json:"sudo,omitempty"`
+
+	Expect string `yaml:"expect,omitempty" json:"expect,omitempty"`
+
+	TimeoutSec int `yaml:"timeout_sec,omitempty" json:"timeout_sec,omitempty"`
+
+	Artifact string `yaml:"artifact,omitempty" json:"artifact,omitempty"`
+
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+}
+
+// #SpiceFlowNode — ONE state of a console flow.
+type SpiceFlowNode struct {
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+
+	Wait []SpiceFlowOutcome `yaml:"wait,omitempty" json:"wait,omitempty"`
+
+	Key string `yaml:"key,omitempty" json:"key,omitempty"`
+
+	Combo string `yaml:"combo,omitempty" json:"combo,omitempty"`
+
+	Text string `yaml:"text,omitempty" json:"text,omitempty"`
+
+	Command string `yaml:"command,omitempty" json:"command,omitempty"`
+
+	Sudo bool `yaml:"sudo,omitempty" json:"sudo,omitempty"`
+
+	Expect string `yaml:"expect,omitempty" json:"expect,omitempty"`
+
+	CloseTerminal bool `yaml:"close_terminal,omitempty" json:"close_terminal,omitempty"`
+
+	Transitions map[string]string `yaml:"transitions,omitempty" json:"transitions,omitempty"`
+
+	Next string `yaml:"next,omitempty" json:"next,omitempty"`
+
+	Artifact string `yaml:"artifact,omitempty" json:"artifact,omitempty"`
+
+	TimeoutSec int `yaml:"timeout_sec,omitempty" json:"timeout_sec,omitempty"`
+}
+
+// #SpiceFlowOutcome — ONE named condition a flow node waits for. It matches by
+// OCR substring OR by a reference screenshot (perceptual hash).
+type SpiceFlowOutcome struct {
+	Name string `yaml:"name,omitempty" json:"name"`
+
+	Match string `yaml:"match,omitempty" json:"match,omitempty"`
+
+	Reference string `yaml:"reference,omitempty" json:"reference,omitempty"`
+
+	MaxDistance int `yaml:"max_distance,omitempty" json:"max_distance,omitempty"`
+
+	Failure bool `yaml:"failure,omitempty" json:"failure,omitempty"`
 }
 
 // #SpiceConsoleRecipe — the console-recipe bundle a `spice: wizard` step reads

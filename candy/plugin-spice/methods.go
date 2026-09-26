@@ -68,6 +68,18 @@ func dispatch(ctx context.Context, ex *sdk.Executor, s *SpiceSession, op *spec.O
 		return runRecord(s, in)
 	case "wizard":
 		return runWizard(ctx, ex, s, in)
+	case "open-terminal":
+		return runOpenTerminal(ctx, s, in)
+	case "run-command":
+		return runCommands(ctx, s, in, in.SudoPassword)
+	case "close-terminal":
+		return runCloseTerminal(ctx, s)
+	case "luks-unlock":
+		return runLUKSUnlock(ctx, s, in)
+	case "flow":
+		return runFlow(ctx, s, in)
+	case "boot-order":
+		return runBootOrder(ctx, s, in, in.SudoPassword)
 	}
 	return "", fmt.Errorf("unknown spice method %q", method)
 }
