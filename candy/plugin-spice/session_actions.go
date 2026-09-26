@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/opencharly/plugin-spice/candy/plugin-spice/params"
 	"github.com/opencharly/sdk/kit"
@@ -121,9 +122,24 @@ func runFlow(ctx context.Context, s *SpiceSession, in *params.SpiceInput) (strin
 		ResumeFromScreen: in.FlowResume,
 		ResumeOrder:      in.FlowResumeOrder,
 		PromptAnchors:    in.PromptAnchors,
+		Deadline:         flowDeadline(ctx),
 	})
 	if err != nil {
 		return kit.RenderFlowEvidence(res), fmt.Errorf("spice: flow: %w", err)
 	}
 	return fmt.Sprintf("flow completed at node %q after %d step(s):\n%s", res.Final, len(res.Steps), kit.RenderFlowEvidence(res)), nil
+}
+
+// flowDeadlineMargin is how long before the host's per-attempt bound the flow
+// stops, leaving time to render and return its evidence.
+const flowDeadlineMargin = 20 * time.Second
+
+// flowDeadline derives a flow's wall-clock budget from the dispatch context's
+// deadline (the host binds each attempt by its never-hang ceiling), so a long
+// flow FAILS CLEANLY with evidence instead of being SIGKILLed mid-node.
+func flowDeadline(ctx context.Context) time.Time {
+	if d, ok := ctx.Deadline(); ok {
+		return d.Add(-flowDeadlineMargin)
+	}
+	return time.Time{}
 }
