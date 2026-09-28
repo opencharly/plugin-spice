@@ -103,6 +103,18 @@ func (provider) Invoke(ctx context.Context, req *pb.InvokeRequest) (*pb.InvokeRe
 		return sdk.VerbVerdict("spice", method, out, runErr, &op, false)
 	}
 
+	// Resolve the session secrets the SAME way jetkvm does (R3): an authored literal
+	// wins, otherwise the credential-store key named by *_secret is read over the
+	// SHARED sdk CredentialAccess reverse leg — so neither secret appears in charly.yml.
+	// A missing store/key resolves to "" (the action then fails visibly on the
+	// unsubstituted secret, which is the honest outcome).
+	if in.SudoPassword == "" && in.SudoPasswordSecret != "" {
+		in.SudoPassword = resolveSecret(ctx, req.GetExecutorBrokerId(), "", in.SudoPasswordSecret)
+	}
+	if in.Passphrase == "" && in.PassphraseSecret != "" {
+		in.Passphrase = resolveSecret(ctx, req.GetExecutorBrokerId(), "", in.PassphraseSecret)
+	}
+
 	s, dialErr := dialEndpoint(ep)
 	if dialErr != nil {
 		return sdk.ResultJSON("fail", fmt.Sprintf("spice: %s: %v", method, dialErr))

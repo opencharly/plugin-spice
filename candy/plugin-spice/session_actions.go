@@ -21,16 +21,22 @@ import (
 
 // runOpenTerminal decodes `open-terminal` into the shared action.
 func runOpenTerminal(ctx context.Context, s *SpiceSession, in *params.SpiceInput) (string, error) {
-	timeout := 60
-	if len(in.Commands) > 0 && in.Commands[0].TimeoutSec > 0 {
-		timeout = in.Commands[0].TimeoutSec
-	}
 	return kit.OpenTerminal(ctx, spiceTransport{s: s}, kit.TerminalOpen{
 		Combo:         in.TerminalCombo,
 		PromptAnchors: in.PromptAnchors,
-		TimeoutSec:    timeout,
+		TimeoutSec:    terminalTimeout(in),
 		Artifact:      in.Artifact,
 	})
+}
+
+// terminalTimeout is the open-terminal shell budget: the first command's
+// authored timeout, else the shared 60s default. Pure, so the default/mapping
+// is unit-locked without a console.
+func terminalTimeout(in *params.SpiceInput) int {
+	if len(in.Commands) > 0 && in.Commands[0].TimeoutSec > 0 {
+		return in.Commands[0].TimeoutSec
+	}
+	return 60
 }
 
 // sessionCommands decodes the authored `commands:` into the neutral form.
@@ -73,22 +79,44 @@ func runLUKSUnlock(ctx context.Context, s *SpiceSession, in *params.SpiceInput) 
 
 // runBootOrder decodes `boot-order` into the shared action.
 func runBootOrder(ctx context.Context, s *SpiceSession, in *params.SpiceInput, sudoPassword string) (string, error) {
-	return kit.RunBootOrder(ctx, spiceTransport{s: s}, kit.BootOrder{
+	return kit.RunBootOrder(ctx, spiceTransport{s: s}, buildBootOrder(in, sudoPassword))
+}
+
+// buildBootOrder decodes the authored `boot-order` fields into the shared
+// action's neutral input. It is pure (no session, no engine), so the
+// param→neutral mapping is unit-locked without a VM console.
+func buildBootOrder(in *params.SpiceInput, sudoPassword string) kit.BootOrder {
+	return kit.BootOrder{
 		Action:       string(in.BootOrderAction),
 		Entry:        in.BootOrderEntry,
 		Sequence:     in.BootOrderSequence,
 		Binary:       in.BootOrderCommand,
 		SudoPassword: sudoPassword,
-	})
+	}
 }
 
 // runFlow decodes `flow` into the shared, bounded state machine.
 func runFlow(ctx context.Context, s *SpiceSession, in *params.SpiceInput) (string, error) {
+	spec, err := buildFlowSpec(ctx, in)
+	if err != nil {
+		return "", err
+	}
+	res, err := kit.RunConsoleFlow(ctx, spiceTransport{s: s}, spec)
+	if err != nil {
+		return kit.RenderFlowEvidence(res), fmt.Errorf("spice: flow: %w", err)
+	}
+	return fmt.Sprintf("flow completed at node %q after %d step(s):\n%s", res.Final, len(res.Steps), kit.RenderFlowEvidence(res)), nil
+}
+
+// buildFlowSpec decodes the authored `flow_*` params into the shared, bounded
+// flow engine's neutral spec. The two guards and the full node/outcome mapping
+// live HERE, so the SPICE decode is unit-testable without a VM console.
+func buildFlowSpec(ctx context.Context, in *params.SpiceInput) (kit.ConsoleFlowSpec, error) {
 	if strings.TrimSpace(in.FlowStart) == "" {
-		return "", fmt.Errorf("spice: flow requires flow_start (the entry node id)")
+		return kit.ConsoleFlowSpec{}, fmt.Errorf("spice: flow requires flow_start (the entry node id)")
 	}
 	if len(in.FlowNodes) == 0 {
-		return "", fmt.Errorf("spice: flow requires a non-empty flow_nodes map")
+		return kit.ConsoleFlowSpec{}, fmt.Errorf("spice: flow requires a non-empty flow_nodes map")
 	}
 	nodes := make(map[string]kit.ConsoleFlowNode, len(in.FlowNodes))
 	for id, n := range in.FlowNodes {
@@ -113,7 +141,7 @@ func runFlow(ctx context.Context, s *SpiceSession, in *params.SpiceInput) (strin
 			TimeoutSec:  n.TimeoutSec,
 		}
 	}
-	res, err := kit.RunConsoleFlow(ctx, spiceTransport{s: s}, kit.ConsoleFlowSpec{
+	return kit.ConsoleFlowSpec{
 		Start:            in.FlowStart,
 		Nodes:            nodes,
 		SudoPassword:     in.SudoPassword,
@@ -123,11 +151,7 @@ func runFlow(ctx context.Context, s *SpiceSession, in *params.SpiceInput) (strin
 		ResumeOrder:      in.FlowResumeOrder,
 		PromptAnchors:    in.PromptAnchors,
 		Deadline:         flowDeadline(ctx),
-	})
-	if err != nil {
-		return kit.RenderFlowEvidence(res), fmt.Errorf("spice: flow: %w", err)
-	}
-	return fmt.Sprintf("flow completed at node %q after %d step(s):\n%s", res.Final, len(res.Steps), kit.RenderFlowEvidence(res)), nil
+	}, nil
 }
 
 // flowDeadlineMargin is how long before the host's per-attempt bound the flow
