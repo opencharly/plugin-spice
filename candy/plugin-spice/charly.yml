@@ -1,7 +1,5 @@
-version: 2026.232.0520
 plugin-spice:
     candy:
-        version: 2026.174.1700
         description: |-
             OUT-OF-TREE charly plugin serving the `spice` SPICE-wire display/input
             check verb — a standalone Go module (go.mod + main.go) that speaks the
