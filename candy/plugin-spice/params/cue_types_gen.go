@@ -28,11 +28,19 @@ package params
 type SpiceInput struct {
 	// method — the spice method to dispatch (the former core #SpiceMethod enum;
 	// also the scalar-sugar primary: `spice: <method>`).
+	//
+	// S3: the words are rows of the `_method` table at the foot of `schema/spice.cue`, and
+	// the enum this field accepts is derived from that table's word list, so the catalog
+	// has ONE home — a new method is one row there, and the table, the derived list and
+	// the enum cannot disagree.
 	Method string `yaml:"method,omitempty" json:"method"`
 
 	// action — start|stop for a record session (record); start|stop|status for a
 	// session (session). record start begins capturing the display framebuffer at
 	// fps into an MJPEG stream; record stop flushes it to artifact.
+	//
+	// S3: `_action`, NOT the console step's `_consoleAction` — the two `action` fields in
+	// this file are two different sets that only share a name.
 	Action string `yaml:"action,omitempty" json:"action,omitempty"`
 
 	// record_name — the recording session name (default "default"); multiple
@@ -105,6 +113,9 @@ type SpiceInput struct {
 type SpiceConsoleStep struct {
 	WaitFor string `yaml:"wait_for,omitempty" json:"wait_for"`
 
+	// action — the console step's action. S3: rows of `_consoleAction`, a DIFFERENT set
+	// from `#SpiceInput.action`'s `_action` — the two fields share a name, not a
+	// vocabulary.
 	Action string `yaml:"action,omitempty" json:"action,omitempty"`
 
 	KeyName string `yaml:"key,omitempty" json:"key,omitempty"`
