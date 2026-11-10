@@ -24,11 +24,19 @@
 #SpiceInput: {
 	// method — the spice method to dispatch (the former core #SpiceMethod enum;
 	// also the scalar-sugar primary: `spice: <method>`).
-	method: "status" | "screenshot" | "cursor" | "click" | "mouse" | "type" | "key" | "record" | "session" | "wizard"
+	//
+	// S3: the words are rows of the `_method` table at the foot of `schema/spice.cue`, and
+	// the enum this field accepts is derived from that table's word list, so the catalog
+	// has ONE home — a new method is one row there, and the table, the derived list and
+	// the enum cannot disagree.
+	method: or(_methodWord)
 	// action — start|stop for a record session (record); start|stop|status for a
 	// session (session). record start begins capturing the display framebuffer at
 	// fps into an MJPEG stream; record stop flushes it to artifact.
-	action?: "start" | "stop" | "status" @go(Action)
+	//
+	// S3: `_action`, NOT the console step's `_consoleAction` — the two `action` fields in
+	// this file are two different sets that only share a name.
+	action?: or(_actionWord) @go(Action)
 	// record_name — the recording session name (default "default"); multiple
 	// concurrent sessions supported.
 	record_name?: string @go(RecordName)
@@ -79,7 +87,10 @@
 // mirrored from kit.ConsoleStep).
 #SpiceConsoleStep: {
 	wait_for: string & !="" @go(WaitFor)
-	action?: "key" | "type" | "key-combo"
+	// action — the console step's action. S3: rows of `_consoleAction`, a DIFFERENT set
+	// from `#SpiceInput.action`'s `_action` — the two fields share a name, not a
+	// vocabulary.
+	action?: or(_consoleActionWord)
 	key?: string @go(KeyName)
 	combo?: string
 	text?: string
@@ -107,3 +118,41 @@
 #SpiceConsoleRecipeEntity: {
 	installer?: #SpiceConsoleRecipe @go(Installer,optional=nillable)
 }
+
+// --- vocabulary tables (S3) --------------------------------------------------
+// Every closed set of words is a table keyed by word, and its word list is derived
+// from the table and used as `or()` of that list (§10.1 S3, D-PAT-3). The table and
+// the enum it feeds therefore cannot disagree, and a new word is ONE row here.
+// `@vocab` names the owner (§3.1): these sets are compiled into THIS plugin, so the
+// owner is the plugin's own word `spice`.
+//
+// TWO of the tables feed fields both named `action` — `_action` is the record/session
+// action on `#SpiceInput`, `_consoleAction` is a console step's action on
+// `#SpiceConsoleStep`. They are separate sets that share a field NAME, which is why they
+// are two tables and not one: merged, a step could ask for a record session with the
+// action "key-combo" and a console step could carry the action "stop", and both would
+// validate here and then fail (or do nothing) at dispatch.
+_method: {
+	// display + input
+	status: {}
+	screenshot: {}
+	cursor: {}
+	click: {}
+	mouse: {}
+	type: {}
+	key: {}
+	// recording
+	record: {}
+	// the DETACHED host-side recorder (session_method.go): start / stop / status talk to
+	// the runner's background-session service, and the provider never dials
+	session: {}
+	// the console wizard
+	wizard: {}
+} @vocab(spice)
+_methodWord: [for w, _ in _method {w}]
+
+_action: {start: {}, stop: {}, status: {}} @vocab(spice)
+_actionWord: [for w, _ in _action {w}]
+
+_consoleAction: {key: {}, type: {}, "key-combo": {}} @vocab(spice)
+_consoleActionWord: [for w, _ in _consoleAction {w}]
