@@ -52,4 +52,4 @@ jobs:
       # visibly (t.Skip) and the params reproducibility gate runs for real.
       - name: tests
         working-directory: candy/plugin-spice
-        run: GOWORK=off go test ./...
+        run: GOWORK=off go test ./... -count=1
